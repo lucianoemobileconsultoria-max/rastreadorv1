@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rastreador GPS v1</title>
+    <title>Rastreador GPS</title>
     <style>
         * {
             margin: 0;
@@ -197,10 +197,7 @@
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-
-        // ATENÇÃO: A URL da API foi configurada abaixo com o endereço da sua aplicação na Vercel.
-        const API_URL = 'https://rastreadorv1.vercel.app/api/update';
+        import { getDatabase, ref, onValue, update, set } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
         const firebaseConfig = {
             apiKey: "AIzaSyAXNiNCu6UFe2t4RshDFBI-MvsnXVtwTRs",
@@ -244,7 +241,6 @@
                     deviceSelect.appendChild(option);
                 });
 
-                // Mantém o dispositivo selecionado se ele ainda existir na lista
                 if (Array.from(deviceSelect.options).some(opt => opt.value === currentSelectedValue)) {
                     deviceSelect.value = currentSelectedValue;
                 }
@@ -263,33 +259,21 @@
             }
         });
 
-        async function sendApiUpdate(payload) {
-            if (!API_URL) {
-                alert('A URL da API não foi configurada no arquivo phone-client.html');
-                stopTracking();
-                return;
-            }
-            try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(payload),
-                });
-                if (!response.ok) {
-                    console.error('Falha ao enviar atualização para a API', await response.text());
-                }
-            } catch (error) {
-                console.error('Erro de rede ao enviar atualização:', error);
-            }
-        }
+        // Helper to format date as YYYY-MM-DD
+        const getFormattedDate = (date) => {
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
 
         function updateLocation(position) {
             if (!selectedDeviceId) return;
 
             const { latitude, longitude, accuracy } = position.coords;
-            const timestamp = Date.now();
+            const now = new Date();
+            const timestamp = now.getTime();
+            const dateKey = getFormattedDate(now);
 
             // Atualiza a interface
             document.getElementById('latitude').textContent = latitude.toFixed(6);
@@ -297,12 +281,21 @@
             document.getElementById('accuracy').textContent = `${accuracy.toFixed(0)}m`;
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
 
-            // Envia para a API
-            sendApiUpdate({
-                deviceId: selectedDeviceId,
+            // Atualiza o nó principal do dispositivo
+            const deviceRef = ref(database, `devices/${selectedDeviceId}`);
+            update(deviceRef, {
+                latitude: latitude,
+                longitude: longitude,
+                lastUpdate: timestamp,
+                active: true
+            });
+
+            // Adiciona ao histórico do dia
+            const historyRef = ref(database, `history/${selectedDeviceId}/${dateKey}/${timestamp}`);
+            set(historyRef, {
                 lat: latitude,
                 lng: longitude,
-                timestamp: timestamp
+                timestamp: now.toISOString()
             });
         }
 
@@ -335,11 +328,6 @@
                 alert('Geolocalização não suportada neste navegador');
                 return;
             }
-            
-            if (!API_URL) {
-                alert('A URL da API não foi configurada no arquivo phone-client.html. O rastreamento não pode começar.');
-                return;
-            }
 
             isTracking = true;
             statusEl.className = 'status active';
@@ -359,14 +347,15 @@
             );
         }
 
-        async function stopTracking() {
+        function stopTracking() {
             if (watchId !== null) {
                 navigator.geolocation.clearWatch(watchId);
                 watchId = null;
             }
 
             if (selectedDeviceId) {
-                await sendApiUpdate({ deviceId: selectedDeviceId, event: 'stop' });
+                const deviceRef = ref(database, `devices/${selectedDeviceId}`);
+                update(deviceRef, { active: false });
             }
 
             isTracking = false;
@@ -383,17 +372,12 @@
                 startTracking();
             }
         });
-
-        // Desativar ao sair da página
+        
         window.addEventListener('beforeunload', (e) => {
             if (isTracking) {
-                // Esta chamada é síncrona, mas pode não completar em todos os navegadores.
-                // Usar sendBeacon é mais confiável, mas para simplificar, usamos fetch.
                 stopTracking();
             }
         });
     </script>
 </body>
 </html>
-
-    
