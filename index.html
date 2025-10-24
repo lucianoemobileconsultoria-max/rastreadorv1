@@ -234,6 +234,7 @@
             
             if (devices) {
                 selectorEl.style.display = 'block';
+                const currentSelectedValue = deviceSelect.value;
                 deviceSelect.innerHTML = '<option value="">Selecione um dispositivo</option>';
                 
                 Object.entries(devices).forEach(([id, device]) => {
@@ -242,11 +243,18 @@
                     option.textContent = `${device.name} - ${device.phoneNumber}`;
                     deviceSelect.appendChild(option);
                 });
+
+                // Mantém o dispositivo selecionado se ele ainda existir na lista
+                if (Array.from(deviceSelect.options).some(opt => opt.value === currentSelectedValue)) {
+                    deviceSelect.value = currentSelectedValue;
+                }
+
             } else {
+                selectorEl.style.display = 'none';
                 statusEl.className = 'status error';
                 statusEl.textContent = 'Nenhum dispositivo cadastrado no sistema';
             }
-        }, { onlyOnce: true }); // Carrega apenas uma vez
+        });
 
         deviceSelect.addEventListener('change', (e) => {
             selectedDeviceId = e.target.value;
@@ -387,3 +395,5 @@
     </script>
 </body>
 </html>
+
+    
