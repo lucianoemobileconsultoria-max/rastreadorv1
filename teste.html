@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rastreador de Dispositivo</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          Helvetica, Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background-color: #f0f0f0;
+        color: #333;
+        text-align: center;
+      }
+      .container {
+        padding: 20px;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        max-width: 90%;
+      }
+      select,
+      button {
+        width: 100%;
+        padding: 12px;
+        margin-top: 15px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        font-size: 16px;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+      button:disabled {
+        background-color: #a0a0a0;
+        cursor: not-allowed;
+      }
+      button:hover:not(:disabled) {
+        background-color: #0056b3;
+      }
+      #status {
+        margin-top: 20px;
+        font-size: 14px;
+        color: #555;
+        min-height: 50px;
+        word-wrap: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Rastreador de Dispositivo</h2>
+      <select id="device-select" disabled>
+        <option value="">Carregando dispositivos...</option>
+      </select>
+      <button id="toggle-tracking" disabled>Selecione um dispositivo</button>
+      <div id="status">Aguardando início do rastreamento.</div>
+    </div>
+
+    <script>
+      const firebaseConfig = {
+        apiKey: 'AIzaSyAXNiNCu6UFe2t4RshDFBI-MvsnXVtwTRs',
+        authDomain: 'rastreadorv1.firebaseapp.com',
+        databaseURL: 'https://rastreadorv1-default-rtdb.firebaseio.com',
+        projectId: 'rastreadorv1',
+        storageBucket: 'rastreadorv1.firebasestorage.app',
+        messagingSenderId: '626621254007',
+        appId: '1:626621254007:web:feab6e99caf7a6d6157972',
+      };
+
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.database();
+
+      const deviceSelect = document.getElementById('device-select');
+      const toggleButton = document.getElementById('toggle-tracking');
+      const statusDiv = document.getElementById('status');
+
+      let watchId = null;
+      let selectedDeviceId = null;
+      let isTracking = false;
+
+      // Carrega dispositivos do Firebase
+      const devicesRef = db.ref('devices');
+      devicesRef.on('value', (snapshot) => {
+        const devices = snapshot.val();
+        deviceSelect.innerHTML = '<option value="">Selecione um dispositivo</option>';
+        if (devices) {
+          for (const id in devices) {
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = devices[id].name;
+            deviceSelect.appendChild(option);
+          }
+          deviceSelect.disabled = false;
+        } else {
+          deviceSelect.innerHTML = '<option value="">Nenhum dispositivo encontrado</option>';
+        }
+      });
+      
+      deviceSelect.addEventListener('change', () => {
+        selectedDeviceId = deviceSelect.value;
+        toggleButton.disabled = !selectedDeviceId;
+        if(selectedDeviceId) {
+            toggleButton.textContent = 'ATIVAR Rastreador';
+        } else {
+            toggleButton.textContent = 'Selecione um dispositivo';
+        }
+      });
+
+      toggleButton.addEventListener('click', () => {
+        if (!selectedDeviceId) return;
+
+        isTracking = !isTracking;
+        if (isTracking) {
+          startTracking();
+        } else {
+          stopTracking();
+        }
+      });
+
+      function startTracking() {
+        if (!('geolocation' in navigator)) {
+          statusDiv.textContent = 'Geolocalização não é suportada pelo seu navegador.';
+          isTracking = false;
+          return;
+        }
+
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        };
+
+        watchId = navigator.geolocation.watchPosition(updateLocation, handleError, options);
+        toggleButton.textContent = 'PARAR Rastreador';
+        statusDiv.textContent = 'Rastreamento ativo...';
+        db.ref('devices/' + selectedDeviceId).update({ active: true });
+      }
+
+      function stopTracking() {
+        if (watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
+        isTracking = false;
+        toggleButton.textContent = 'ATIVAR Rastreador';
+        statusDiv.textContent = 'Rastreamento parado.';
+        db.ref('devices/' + selectedDeviceId).update({ active: false });
+      }
+
+      function updateLocation(position) {
+        const { latitude, longitude } = position.coords;
+        const now = new Date();
+        const timestamp = now.getTime();
+        const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        const locationData = {
+          latitude: latitude,
+          longitude: longitude,
+          lastUpdate: timestamp,
+          active: true,
+        };
+
+        // Atualiza a localização principal do dispositivo
+        db.ref('devices/' + selectedDeviceId).update(locationData);
+
+        // Adiciona ao histórico diário
+        const historyRef = db.ref(`history/${selectedDeviceId}/${dateKey}/${timestamp}`);
+        historyRef.set({
+          lat: latitude,
+          lng: longitude,
+          timestamp: now.toISOString(),
+        });
+
+        statusDiv.textContent = `Localização atualizada: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      }
+
+      function handleError(error) {
+        statusDiv.textContent = `Erro ao obter localização: ${error.message}`;
+        console.error('Geolocation Error:', error);
+        stopTracking();
+      }
+    </script>
+  </body>
+</html>
