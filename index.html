@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rastreador GPS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .status {
+            text-align: center;
+            padding: 12px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .status.inactive {
+            background: #fee;
+            color: #c33;
+        }
+
+        .status.active {
+            background: #efe;
+            color: #3c3;
+        }
+
+        .status.error {
+            background: #ffe;
+            color: #cc8800;
+        }
+
+        .info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        button {
+            width: 100%;
+            padding: 18px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .select-wrapper {
+            margin-bottom: 20px;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #333;
+            background: white;
+            cursor: pointer;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">📍</div>
+        <h1>Rastreador GPS</h1>
+        
+        <div id="loadingDevices" class="loading">Carregando dispositivos...</div>
+        
+        <div id="deviceSelector" class="select-wrapper" style="display: none;">
+            <select id="deviceSelect">
+                <option value="">Selecione um dispositivo</option>
+            </select>
+        </div>
+
+        <div id="status" class="status inactive">
+            RASTREAMENTO DESATIVADO
+        </div>
+
+        <div id="info" class="info" style="display: none;">
+            <div class="info-row">
+                <span class="info-label">Latitude:</span>
+                <span id="latitude">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Longitude:</span>
+                <span id="longitude">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Precisão:</span>
+                <span id="accuracy">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Última atualização:</span>
+                <span id="lastUpdate">-</span>
+            </div>
+        </div>
+
+        <button id="toggleBtn">ATIVAR RASTREADOR</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, set, onValue, update } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAXNiNCu6UFe2t4RshDFBI-MvsnXVtwTRs",
+            authDomain: "rastreadorv1.firebaseapp.com",
+            databaseURL: "https://rastreadorv1-default-rtdb.firebaseio.com",
+            projectId: "rastreadorv1",
+            storageBucket: "rastreadorv1.firebasestorage.app",
+            messagingSenderId: "626621254007",
+            appId: "1:626621254007:web:feab6e99caf7a6d6157972"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        let isTracking = false;
+        let watchId = null;
+        let selectedDeviceId = null;
+
+        const statusEl = document.getElementById('status');
+        const infoEl = document.getElementById('info');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const deviceSelect = document.getElementById('deviceSelect');
+        const loadingEl = document.getElementById('loadingDevices');
+        const selectorEl = document.getElementById('deviceSelector');
+
+        // Carregar dispositivos do Firebase
+        const devicesRef = ref(database, 'devices');
+        onValue(devicesRef, (snapshot) => {
+            const devices = snapshot.val();
+            loadingEl.style.display = 'none';
+            
+            if (devices) {
+                selectorEl.style.display = 'block';
+                deviceSelect.innerHTML = '<option value="">Selecione um dispositivo</option>';
+                
+                Object.entries(devices).forEach(([id, device]) => {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = `${device.name} - ${device.phoneNumber}`;
+                    deviceSelect.appendChild(option);
+                });
+            } else {
+                statusEl.className = 'status error';
+                statusEl.textContent = 'Nenhum dispositivo cadastrado no sistema';
+            }
+        });
+
+        deviceSelect.addEventListener('change', (e) => {
+            selectedDeviceId = e.target.value;
+            if (isTracking && selectedDeviceId) {
+                stopTracking();
+                startTracking();
+            }
+        });
+
+        function updateLocation(position) {
+            if (!selectedDeviceId) return;
+
+            const { latitude, longitude, accuracy } = position.coords;
+            const timestamp = Date.now();
+
+            document.getElementById('latitude').textContent = latitude.toFixed(6);
+            document.getElementById('longitude').textContent = longitude.toFixed(6);
+            document.getElementById('accuracy').textContent = `${accuracy.toFixed(0)}m`;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
+
+            const deviceRef = ref(database, `devices/${selectedDeviceId}`);
+            update(deviceRef, {
+                latitude,
+                longitude,
+                lastUpdate: timestamp,
+                active: true
+            });
+        }
+
+        function handleError(error) {
+            console.error('Erro de geolocalização:', error);
+            statusEl.className = 'status error';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    statusEl.textContent = 'Permissão de localização negada';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    statusEl.textContent = 'Localização não disponível';
+                    break;
+                case error.TIMEOUT:
+                    statusEl.textContent = 'Tempo esgotado ao buscar localização';
+                    break;
+                default:
+                    statusEl.textContent = 'Erro desconhecido ao buscar localização';
+            }
+        }
+
+        function startTracking() {
+            if (!selectedDeviceId) {
+                alert('Por favor, selecione um dispositivo primeiro');
+                return;
+            }
+
+            if (!navigator.geolocation) {
+                alert('Geolocalização não suportada neste navegador');
+                return;
+            }
+
+            isTracking = true;
+            statusEl.className = 'status active';
+            statusEl.textContent = 'RASTREAMENTO ATIVO';
+            infoEl.style.display = 'block';
+            toggleBtn.textContent = 'DESATIVAR RASTREADOR';
+            deviceSelect.disabled = true;
+
+            watchId = navigator.geolocation.watchPosition(
+                updateLocation,
+                handleError,
+                {
+                    enableHighAccuracy: true,
+                    timeout: 5000,
+                    maximumAge: 0
+                }
+            );
+        }
+
+        function stopTracking() {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+
+            if (selectedDeviceId) {
+                const deviceRef = ref(database, `devices/${selectedDeviceId}`);
+                update(deviceRef, {
+                    active: false
+                });
+            }
+
+            isTracking = false;
+            statusEl.className = 'status inactive';
+            statusEl.textContent = 'RASTREAMENTO DESATIVADO';
+            toggleBtn.textContent = 'ATIVAR RASTREADOR';
+            deviceSelect.disabled = false;
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            if (isTracking) {
+                stopTracking();
+            } else {
+                startTracking();
+            }
+        });
+
+        // Desativar ao sair da página
+        window.addEventListener('beforeunload', () => {
+            if (isTracking) {
+                stopTracking();
+            }
+        });
+    </script>
+</body>
+</html>
