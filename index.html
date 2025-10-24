@@ -199,8 +199,8 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
-        // ATENÇÃO: Substitua esta URL pela URL da sua aplicação implantada
-        const API_URL = '/api/update'; 
+        // ATENÇÃO: A URL da API foi configurada abaixo com o endereço da sua aplicação na Vercel.
+        const API_URL = 'https://rastreadorv1.vercel.app/api/update';
 
         const firebaseConfig = {
             apiKey: "AIzaSyAXNiNCu6UFe2t4RshDFBI-MvsnXVtwTRs",
@@ -256,6 +256,11 @@
         });
 
         async function sendApiUpdate(payload) {
+            if (!API_URL) {
+                alert('A URL da API não foi configurada no arquivo phone-client.html');
+                stopTracking();
+                return;
+            }
             try {
                 const response = await fetch(API_URL, {
                     method: 'POST',
@@ -322,6 +327,11 @@
                 alert('Geolocalização não suportada neste navegador');
                 return;
             }
+            
+            if (!API_URL) {
+                alert('A URL da API não foi configurada no arquivo phone-client.html. O rastreamento não pode começar.');
+                return;
+            }
 
             isTracking = true;
             statusEl.className = 'status active';
@@ -377,5 +387,3 @@
     </script>
 </body>
 </html>
-
-    
