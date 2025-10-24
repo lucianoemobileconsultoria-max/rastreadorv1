@@ -197,7 +197,10 @@
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getDatabase, ref, set, onValue, update } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+        import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        // ATENÇÃO: Substitua esta URL pela URL da sua aplicação implantada
+        const API_URL = '/api/update'; 
 
         const firebaseConfig = {
             apiKey: "AIzaSyAXNiNCu6UFe2t4RshDFBI-MvsnXVtwTRs",
@@ -223,7 +226,7 @@
         const loadingEl = document.getElementById('loadingDevices');
         const selectorEl = document.getElementById('deviceSelector');
 
-        // Carregar dispositivos do Firebase
+        // Carregar dispositivos do Firebase (somente leitura)
         const devicesRef = ref(database, 'devices');
         onValue(devicesRef, (snapshot) => {
             const devices = snapshot.val();
@@ -243,15 +246,31 @@
                 statusEl.className = 'status error';
                 statusEl.textContent = 'Nenhum dispositivo cadastrado no sistema';
             }
-        });
+        }, { onlyOnce: true }); // Carrega apenas uma vez
 
         deviceSelect.addEventListener('change', (e) => {
             selectedDeviceId = e.target.value;
-            if (isTracking && selectedDeviceId) {
-                stopTracking();
-                startTracking();
+            if (isTracking) {
+                stopTracking().then(startTracking);
             }
         });
+
+        async function sendApiUpdate(payload) {
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) {
+                    console.error('Falha ao enviar atualização para a API', await response.text());
+                }
+            } catch (error) {
+                console.error('Erro de rede ao enviar atualização:', error);
+            }
+        }
 
         function updateLocation(position) {
             if (!selectedDeviceId) return;
@@ -259,17 +278,18 @@
             const { latitude, longitude, accuracy } = position.coords;
             const timestamp = Date.now();
 
+            // Atualiza a interface
             document.getElementById('latitude').textContent = latitude.toFixed(6);
             document.getElementById('longitude').textContent = longitude.toFixed(6);
             document.getElementById('accuracy').textContent = `${accuracy.toFixed(0)}m`;
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
 
-            const deviceRef = ref(database, `devices/${selectedDeviceId}`);
-            update(deviceRef, {
-                latitude,
-                longitude,
-                lastUpdate: timestamp,
-                active: true
+            // Envia para a API
+            sendApiUpdate({
+                deviceId: selectedDeviceId,
+                lat: latitude,
+                lng: longitude,
+                timestamp: timestamp
             });
         }
 
@@ -315,23 +335,20 @@
                 handleError,
                 {
                     enableHighAccuracy: true,
-                    timeout: 5000,
+                    timeout: 10000,
                     maximumAge: 0
                 }
             );
         }
 
-        function stopTracking() {
+        async function stopTracking() {
             if (watchId !== null) {
                 navigator.geolocation.clearWatch(watchId);
                 watchId = null;
             }
 
             if (selectedDeviceId) {
-                const deviceRef = ref(database, `devices/${selectedDeviceId}`);
-                update(deviceRef, {
-                    active: false
-                });
+                await sendApiUpdate({ deviceId: selectedDeviceId, event: 'stop' });
             }
 
             isTracking = false;
@@ -350,11 +367,15 @@
         });
 
         // Desativar ao sair da página
-        window.addEventListener('beforeunload', () => {
+        window.addEventListener('beforeunload', (e) => {
             if (isTracking) {
+                // Esta chamada é síncrona, mas pode não completar em todos os navegadores.
+                // Usar sendBeacon é mais confiável, mas para simplificar, usamos fetch.
                 stopTracking();
             }
         });
     </script>
 </body>
 </html>
+
+    
