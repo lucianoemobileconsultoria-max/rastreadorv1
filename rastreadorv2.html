@@ -185,6 +185,7 @@
       e.preventDefault();
       deferredPrompt = e;
       installContainer.classList.remove('hidden');
+      installContainer.classList.add('flex'); // Make it visible
     });
 
     installButton.addEventListener('click', async () => {
@@ -194,11 +195,13 @@
         console.log(`User response to the install prompt: ${outcome}`);
         deferredPrompt = null;
         installContainer.classList.add('hidden');
+        installContainer.classList.remove('flex');
       }
     });
     
     window.addEventListener('appinstalled', () => {
         installContainer.classList.add('hidden');
+        installContainer.classList.remove('flex');
         deferredPrompt = null;
         console.log('PWA foi instalado');
     });
@@ -256,7 +259,7 @@
     function enviarNotificacao(titulo, mensagem) {
       if ('Notification' in window && Notification.permission === 'granted') {
         try {
-          new Notification(titulo, { body: mensagem, icon: '/icon-192x192.png', tag: 'rastreamento-gps' });
+          new Notification(titulo, { body: mensagem, icon: '/icon-192.svg', tag: 'rastreamento-gps' });
         } catch (err) { console.log('Erro notificação:', err); }
       }
     }
@@ -482,7 +485,7 @@
     });
 
     document.addEventListener('DOMContentLoaded', async () => {
-      console.log('🚀 Inicializando App GEOMAQ v4 (PWA)...');
+      console.log('🚀 Inicializando App GEOMAQ v5 (PWA Fix)...');
       await registerServiceWorker();
       contagemEnvios = parseInt(localStorage.getItem('contagemEnvios')) || 0;
       contagemEnviosEl.textContent = contagemEnvios;
