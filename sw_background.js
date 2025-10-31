@@ -1,8 +1,10 @@
-const CACHE_NAME = 'geomad-cache-v1';
+const CACHE_NAME = 'geomad-cache-v2'; // Versão do cache atualizada
 const urlsToCache = [
-  '/',
+  './',
   './rastreadorv2.html',
   './manifest.json',
+  './icon-192.svg',
+  './icon-512.svg',
   'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js'
 ];
