@@ -43,6 +43,13 @@
     <source src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" type="audio/wav">
   </audio>
 
+  <div id="install-container" class="bg-indigo-800 text-white p-3 text-center hidden items-center justify-center gap-4">
+    <p class="font-medium">Instale o app para a melhor experiência!</p>
+    <button id="install-button" class="bg-white text-indigo-700 font-bold py-1 px-4 rounded-lg shadow-md hover:bg-indigo-100 transition-all">
+      Instalar App
+    </button>
+  </div>
+
   <header class="bg-white/90 shadow-md p-4 flex justify-between items-center sticky top-0 z-20">
     <div>
       <h1 class="text-xl font-extrabold text-indigo-700 drop-shadow">GEOMAQ</h1>
@@ -169,6 +176,44 @@
     const wakeLockIcon = document.getElementById('wakeLockIcon');
     const wakeLockText = document.getElementById('wakeLockText');
 
+    // ==================== PWA / SERVICE WORKER ====================
+    let deferredPrompt;
+    const installContainer = document.getElementById('install-container');
+    const installButton = document.getElementById('install-button');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installContainer.classList.remove('hidden');
+    });
+
+    installButton.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User response to the install prompt: ${outcome}`);
+        deferredPrompt = null;
+        installContainer.classList.add('hidden');
+      }
+    });
+    
+    window.addEventListener('appinstalled', () => {
+        installContainer.classList.add('hidden');
+        deferredPrompt = null;
+        console.log('PWA foi instalado');
+    });
+
+    async function registerServiceWorker() {
+        if ('serviceWorker' in navigator) {
+            try {
+                const registration = await navigator.serviceWorker.register('/sw_background.js', { scope: '/' });
+                console.log('✅ Service Worker registrado com sucesso:', registration);
+            } catch (error) {
+                console.error('❌ Falha ao registrar Service Worker:', error);
+            }
+        }
+    }
+
     // ==================== WAKE LOCK API ====================
     const requestWakeLock = async () => {
       if ('wakeLock' in navigator) {
@@ -246,8 +291,8 @@
 
         celularSelect.innerHTML = '<option value="">Selecione...</option>';
         if (data && data.length > 0) {
-          data.forEach(c => { celularSelect.innerHTML += `<option value="${c.id}">${c.nome} (${c.numero})</option>`; });
-          loadingMsg.textContent = `✅ ${data.length} celular(es)`;
+          data.filter(c => c.numero).forEach(c => { celularSelect.innerHTML += `<option value="${c.id}">${c.nome} (${c.numero})</option>`; });
+          loadingMsg.textContent = `✅ ${data.filter(c => c.numero).length} celular(es)`;
         }
         
         const savedId = localStorage.getItem('lastSelectedCelularId');
@@ -437,7 +482,8 @@
     });
 
     document.addEventListener('DOMContentLoaded', async () => {
-      console.log('🚀 Inicializando App GEOMAQ v3 (watchPosition)...');
+      console.log('🚀 Inicializando App GEOMAQ v4 (PWA)...');
+      await registerServiceWorker();
       contagemEnvios = parseInt(localStorage.getItem('contagemEnvios')) || 0;
       contagemEnviosEl.textContent = contagemEnvios;
       const ultimoTs = parseInt(localStorage.getItem('ultimoEnvioTimestamp')) || 0;
