@@ -1,17 +1,17 @@
-const CACHE_NAME = 'geomad-cache-v2'; // Versão do cache atualizada
+const CACHE_NAME = 'geomad-cache-v3'; // Versão do cache atualizada para forçar a atualização
 const urlsToCache = [
   './',
   './rastreadorv2.html',
   './manifest.json',
-  './icon-192.svg',
-  './icon-512.svg',
+  './icon-192.svg', // Agora este arquivo existe
+  './icon-512.svg', // Agora este arquivo existe
   'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js'
 ];
 
 // Instalar e cachear os arquivos principais da aplicação
 self.addEventListener('install', event => {
-  console.log('[SW] Instalando Service Worker...');
+  console.log('[SW] Instalando Service Worker v3...');
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
       console.log('[SW] Cache aberto, adicionando arquivos ao cache...');
@@ -25,7 +25,7 @@ self.addEventListener('install', event => {
 
 // Ativar o Service Worker e limpar caches antigos
 self.addEventListener('activate', event => {
-  console.log('[SW] Ativando Service Worker...');
+  console.log('[SW] Ativando Service Worker v3...');
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
@@ -63,4 +63,4 @@ self.addEventListener('fetch', event => {
   );
 });
 
-console.log('[SW] Service Worker carregado.');
+console.log('[SW] Service Worker v3 carregado.');
