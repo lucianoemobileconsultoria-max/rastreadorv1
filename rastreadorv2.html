@@ -261,7 +261,7 @@
     function enviarNotificacao(titulo, mensagem) {
       if ('Notification' in window && Notification.permission === 'granted') {
         try {
-          new Notification(titulo, { body: mensagem, icon: '/icon-192.svg', tag: 'rastreamento-gps' });
+          new Notification(titulo, { body: mensagem, icon: '/icon-192.png', tag: 'rastreamento-gps' });
         } catch (err) { console.log('Erro notificação:', err); }
       }
     }
