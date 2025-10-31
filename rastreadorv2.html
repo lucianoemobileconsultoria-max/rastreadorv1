@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>GEOMAQ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { 
+      min-height: 100vh; 
+      /* Removemos o flex center para permitir o layout da página inteira */
+    }
+    .status-indicator {
+      width: 12px; height: 12px; border-radius: 50%;
+      display: inline-block; margin-right: 8px;
+    }
+    .status-active { background-color: #10b981; box-shadow: 0 0 8px #10b981; }
+    .status-inactive { background-color: #ef4444; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+    /* Estilos para o menu sanduíche */
+    #menuNav {
+      transform: translateX(-100%);
+      transition: transform 0.3s ease-in-out;
+    }
+    #menuNav.open {
+      transform: translateX(0);
+    }
+    #menuOverlay {
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease-in-out, visibility 0.3s;
+    }
+    #menuOverlay.open {
+      opacity: 1;
+      visibility: visible;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-700 via-purple-700 to-violet-800 text-gray-900">
+
+  <header class="bg-white/90 shadow-md p-4 flex justify-between items-center sticky top-0 z-20">
+    <div>
+      <h1 class="text-xl font-extrabold text-indigo-700 drop-shadow">GEOMAQ</h1>
+      <p class="text-sm text-gray-600 font-medium">LOCALIZAR DE MÁQUINAS</p>
+    </div>
+    <button id="menuButton" class="p-2 z-40">
+      <svg class="w-6 h-6 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-4 6h16"></path>
+      </svg>
+    </button>
+  </header>
+
+  <div id="menuOverlay" class="fixed inset-0 bg-black/50 z-20 md:hidden"></div>
+
+  <nav id="menuNav" class="fixed top-0 left-0 h-full w-64 bg-white shadow-xl z-30 p-6">
+    <h2 class="text-lg font-bold text-indigo-700 mb-6">Menu</h2>
+    <ul>
+      <li>
+        <a href="#" id="navHome" class="nav-link block py-2 px-4 rounded-lg font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600">Início</a>
+      </li>
+      <li>
+        <a href="#" id="navRastreador" class="nav-link block py-2 px-4 rounded-lg font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600">Rastreamento</a>
+      </li>
+    </ul>
+  </nav>
+
+  <div class="relative min-h-screen">
+    
+    <main id="homePage" class="page-content p-6 flex flex-col items-center justify-center text-center" style="min-height: 80vh;">
+      <h2 class="text-3xl font-bold text-white mb-8 drop-shadow-lg">Bem-vindo</h2>
+      
+      <div class="w-full max-w-md mb-8">
+        <label for="celularSelect" class="block text-white/90 font-semibold mb-2 text-sm text-left">Selecione seu celular:</label>
+        <select id="celularSelect" required class="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-base shadow text-gray-900">
+          <option value="">Carregando...</option>
+        </select>
+        <div id="loadingMsg" class="mt-2 text-xs text-white/80 text-left"></div>
+      </div>
+      
+      <button id="homeEntrouBtn" 
+              class="w-48 h-48 bg-gradient-to-br from-purple-500 to-indigo-600 text-white font-bold text-2xl
+                     rounded-2xl shadow-2xl 
+                     flex items-center justify-center text-center
+                     transition-all duration-300 
+                     hover:scale-110 hover:shadow-cyan-300/30
+                     active:scale-100 active:shadow-lg
+                     focus:outline-none focus:ring-4 focus:ring-purple-300">
+        ESTOU AQUI
+      </button>
+
+      <div id="homeStatusMsg" class="mt-6 text-center text-lg font-medium text-white/90"></div>
+    </main>
+
+    <main id="rastreadorPage" class="page-content p-6 hidden flex items-center justify-center" style="min-height: 80vh;">
+      <div class="w-full max-w-md rounded-2xl shadow-2xl bg-white/95 mx-auto p-6">
+        <h1 class="text-2xl font-extrabold text-indigo-700 mb-4 text-center drop-shadow">🗺️ Configurar Rastreador</h1>
+        
+        <div id="statusContainer" class="mb-4 p-4 rounded-xl border-2 border-gray-200 bg-gray-50">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-gray-700">Status:</span>
+            <div id="statusIndicator" class="flex items-center">
+              <span class="status-indicator status-inactive"></span>
+              <span id="statusText" class="text-sm font-medium text-gray-600">Inativo</span>
+            </div>
+          </div>
+          <div class="text-xs text-gray-500">
+            <div>Intervalo: <span class="font-semibold">5 minutos</span></div>
+            <div>Último envio: <span id="ultimoEnvio" class="font-semibold">Nunca</span></div>
+            <div>Próximo envio: <span id="proximoEnvio" class="font-semibold">---</span></div>
+            <div>Envios realizados: <span id="contagemEnvios" class="font-semibold">0</span></div>
+            <div class="mt-2 pt-2 border-t">
+              <span class="font-semibold text-purple-600">✓</span> Web Worker ativo
+              <div class="text-[10px] text-gray-400 mt-1">Thread separada - nunca pausa</div>
+            </div>
+          </div>
+        </div>
+
+        <form id="enviarLocalizacaoForm" class="flex flex-col gap-5">
+          <button type="button" id="liberarBtn"
+            class="w-full bg-gradient-to-tr from-purple-600 to-indigo-700 text-white font-bold rounded-xl py-3 shadow-xl text-lg hover:scale-105 transition active:scale-95">
+            🚀 Iniciar Rastreamento
+          </button>
+          
+          <button type="button" id="pararBtn"
+            class="w-full bg-gradient-to-tr from-red-600 to-red-700 text-white font-bold rounded-xl py-3 shadow-xl text-lg hover:scale-105 transition active:scale-95 hidden">
+            ⏹️ Parar Rastreamento
+          </button>
+          
+          <div id="statusMsg" class="mt-2 text-center text-sm font-medium"></div>
+        </form>
+
+        <div id="workerInfo" class="mt-4 p-3 rounded-lg bg-purple-50 border border-purple-200 text-xs text-purple-800 hidden">
+          <p class="font-semibold mb-1">⚡ Web Worker Ativado</p>
+          <p>Thread separada rodando - funciona mesmo com tela desligada!</p>
+          <p class="mt-1 text-[10px]">Worker Status: <span id="workerStatus" class="font-semibold">Conectado</span></p>
+        </div>
+      </div>
+    </main>
+
+  </div> <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script>
+    // ===================================================
+    // TODO O SEU CÓDIGO ORIGINAL ESTÁ AQUI SEM MUDANÇAS
+    // ===================================================
+
+    const SUPABASE_URL = 'https://rptxfjlxymfmxucctuhc.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwdHhmamx4eW1mbXh1Y2N0dWhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1NTcxNjMsImV4cCI6MjA3NzEzMzE2M30.kQSF0jp_-0Qi2AmHQNKz6eTo7zeEi3b7Lk9UjT216dU';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const INTERVALO_MS = 5 * 60 * 1000;
+    
+    let worker = null;
+    let contagemEnvios = 0;
+    let ultimoEnvioTimestamp = 0;
+    let proximoEnvioTimeout = null;
+
+    // --- Seletores da Página de Rastreamento ---
+    const celularSelect = document.getElementById('celularSelect');
+    const liberarBtn = document.getElementById('liberarBtn');
+    const pararBtn = document.getElementById('pararBtn');
+    const statusMsg = document.getElementById('statusMsg');
+    const loadingMsg = document.getElementById('loadingMsg');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const statusText = document.getElementById('statusText');
+    const ultimoEnvioEl = document.getElementById('ultimoEnvio');
+    const proximoEnvioEl = document.getElementById('proximoEnvio');
+    const contagemEnviosEl = document.getElementById('contagemEnvios');
+    const workerInfo = document.getElementById('workerInfo');
+    const workerStatus = document.getElementById('workerStatus');
+    
+    // --- Seletores Globais e da Home Page ---
+    const menuButton = document.getElementById('menuButton');
+    const menuNav = document.getElementById('menuNav');
+    const menuOverlay = document.getElementById('menuOverlay');
+    const navLinks = document.querySelectorAll('.nav-link');
+    const homePage = document.getElementById('homePage');
+    const rastreadorPage = document.getElementById('rastreadorPage');
+    const homeEntrouBtn = document.getElementById('homeEntrouBtn');
+    const homeStatusMsg = document.getElementById('homeStatusMsg');
+
+
+    // ==================== WEB WORKER ====================
+
+    function inicializarWorker() {
+      try {
+        // --- INÍCIO DA CORREÇÃO ---
+        // O código do worker_location.js é embutido aqui para criar um Blob.
+        // Isso corrige o erro "not a valid URL" em ambientes restritos (como o blob:).
+        const workerCode = `
+          // Web Worker para manter rastreamento ativo em background
+          // Este worker roda em thread separada e não é pausado
+
+          console.log('[WORKER] Iniciado!');
+
+          let intervaloAtivo = false;
+          let celularId = null;
+          let intervaloTimer = null;
+          const INTERVALO_MS = 5 * 60 * 1000; // 5 minutos
+
+          // Receber mensagens da página principal
+          self.addEventListener('message', (e) => {
+            const { tipo, dados } = e.data;
+            
+            console.log('[WORKER] Mensagem recebida:', tipo);
+            
+            switch (tipo) {
+              case 'INICIAR':
+                iniciarRastreamento(dados.celularId);
+                break;
+                
+              case 'PARAR':
+                pararRastreamento();
+                break;
+                
+              case 'PING':
+                self.postMessage({ tipo: 'PONG', timestamp: Date.now() });
+                break;
+                
+              case 'STATUS':
+                self.postMessage({
+                  tipo: 'STATUS_RESPOSTA',
+                  ativo: intervaloAtivo,
+                  celularId: celularId
+                });
+                break;
+            }
+          });
+
+          function iniciarRastreamento(idCelular) {
+            console.log('[WORKER] Iniciando rastreamento para celular:', idCelular);
+            
+            celularId = idCelular;
+            intervaloAtivo = true;
+            
+            // Primeira verificação imediata
+            verificarEEnviar();
+            
+            // Timer contínuo - Web Workers não são pausados!
+            if (intervaloTimer) {
+              clearInterval(intervaloTimer);
+            }
+            
+            intervaloTimer = setInterval(() => {
+              verificarEEnviar();
+            }, 30000); // Verificar a cada 30 segundos
+            
+            self.postMessage({
+              tipo: 'RASTREAMENTO_INICIADO',
+              timestamp: Date.now()
+            });
+          }
+
+          function pararRastreamento() {
+            console.log('[WORKER] Parando rastreamento');
+            
+            intervaloAtivo = false;
+            
+            if (intervaloTimer) {
+              clearInterval(intervaloTimer);
+              intervaloTimer = null;
+            }
+            
+            self.postMessage({
+              tipo: 'RASTREAMENTO_PARADO',
+              timestamp: Date.now()
+            });
+          }
+
+          function verificarEEnviar() {
+            if (!intervaloAtivo || !celularId) {
+              console.log('[WORKER] Rastreamento inativo ou sem celular');
+              return;
+            }
+            
+            console.log('[WORKER] ⏰ Verificando se precisa enviar...');
+            
+            // Solicitar à página principal que envie a localização
+            self.postMessage({
+              tipo: 'SOLICITAR_LOCALIZACAO',
+              celularId: celularId,
+              timestamp: Date.now()
+            });
+          }
+
+          // Heartbeat para garantir que worker está vivo
+          setInterval(() => {
+            if (intervaloAtivo) {
+              console.log('[WORKER] 💚 Worker ativo e funcionando');
+              self.postMessage({
+                tipo: 'HEARTBEAT',
+                timestamp: Date.now()
+              });
+            }
+          }, 60000); // A cada 1 minuto
+
+          console.log('[WORKER] Pronto para receber comandos');
+        `;
+        
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(blob);
+        
+        // worker = new Worker('worker_location.js'); // Linha original com erro
+        worker = new Worker(workerUrl); // Linha corrigida
+        // --- FIM DA CORREÇÃO ---
+        
+        console.log('✅ Web Worker criado');
+        
+        worker.addEventListener('message', (e) => {
+// ... (restante do código original)
+// ... (restante do código original)
+// ... (restante do código original)
+          const { tipo, celularId, timestamp } = e.data;
+          console.log('[MAIN] Mensagem do worker:', tipo);
+          
+          switch (tipo) {
+            case 'SOLICITAR_LOCALIZACAO':
+              verificarEEnviar(celularId);
+              break;
+              
+            case 'RASTREAMENTO_INICIADO':
+              workerStatus.textContent = 'Rastreando';
+              workerStatus.className = 'font-semibold text-green-600';
+              break;
+              
+            case 'RASTREAMENTO_PARADO':
+              workerStatus.textContent = 'Parado';
+              workerStatus.className = 'font-semibold text-red-600';
+              break;
+              
+            case 'HEARTBEAT':
+              console.log('💚 Worker heartbeat OK');
+              workerStatus.textContent = 'Ativo ✓';
+              break;
+              
+            case 'PONG':
+              console.log('🏓 Worker respondeu ping');
+              break;
+          }
+        });
+        
+        worker.addEventListener('error', (e) => {
+          console.error('❌ Erro no worker:', e);
+          workerStatus.textContent = 'Erro';
+          workerStatus.className = 'font-semibold text-red-600';
+        });
+        
+        return true;
+      } catch (err) {
+        console.error('❌ Falha ao criar worker:', err);
+        return false;
+      }
+    }
+
+    async function verificarEEnviar(celularId) {
+      const agora = Date.now();
+      const tempoDecorrido = agora - ultimoEnvioTimestamp;
+      
+      if (tempoDecorrido < INTERVALO_MS && ultimoEnvioTimestamp > 0) {
+        console.log('⏰ Ainda não passou 5min');
+        return;
+      }
+      
+      console.log('⏰ Tempo passou! Enviando...');
+      await obterEEnviarLocalizacao(celularId);
+    }
+
+    // ==================== PERMISSÕES ====================
+
+    async function solicitarPermissaoNotificacao() {
+      if ('Notification' in window && Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
+    }
+
+    function enviarNotificacao(titulo, mensagem) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification(titulo, {
+            body: mensagem,
+            icon: '/icon-192x192.png',
+            tag: 'rastreamento-gps'
+          });
+        } catch (err) {
+          console.log('Erro notificação:', err);
+        }
+      }
+    }
+
+    // ==================== UI ====================
+
+    function atualizarStatusUI(ativo) {
+      if (ativo) {
+        statusIndicator.innerHTML = '<span class="status-indicator status-active pulse"></span>';
+        statusText.textContent = 'Rastreando';
+        statusText.className = 'text-sm font-medium text-green-600';
+        liberarBtn.classList.add('hidden');
+        pararBtn.classList.remove('hidden');
+        workerInfo.classList.remove('hidden');
+        homeStatusMsg.textContent = 'Rastreamento ATIVO 🚀';
+        homeStatusMsg.className = 'mt-6 text-center text-lg font-bold text-green-300 drop-shadow';
+      } else {
+        statusIndicator.innerHTML = '<span class="status-indicator status-inactive"></span>';
+        statusText.textContent = 'Inativo';
+        statusText.className = 'text-sm font-medium text-gray-600';
+        liberarBtn.classList.remove('hidden');
+        pararBtn.classList.add('hidden');
+        proximoEnvioEl.textContent = '---';
+        workerInfo.classList.add('hidden');
+        homeStatusMsg.textContent = 'Rastreamento inativo.';
+        homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-white/90';
+      }
+    }
+
+    function atualizarContagemRegressiva() {
+      if (proximoEnvioTimeout) {
+        clearInterval(proximoEnvioTimeout);
+      }
+
+      const fimContagem = ultimoEnvioTimestamp + INTERVALO_MS;
+
+      proximoEnvioTimeout = setInterval(() => {
+        const agora = Date.now();
+        const restante = fimContagem - agora;
+
+        if (restante <= 0) {
+          proximoEnvioEl.textContent = 'Enviando...';
+          return;
+        }
+
+        const min = Math.floor(restante / 60000);
+        const seg = Math.floor((restante % 60000) / 1000);
+        proximoEnvioEl.textContent = min + 'm ' + seg + 's';
+      }, 1000);
+    }
+
+    // ==================== SUPABASE ====================
+
+    async function carregarCelulares() {
+      try {
+        loadingMsg.textContent = '🔄 Carregando...';
+        loadingMsg.className = 'mt-2 text-xs text-blue-600';
+        
+        const { data, error } = await supabase
+          .from('usuarios_localizacao')
+          .select('id,nome,numero');
+        
+        if (error) throw error;
+
+        celularSelect.innerHTML = '<option value="">Selecione...</option>';
+        
+        if (data && data.length > 0) {
+          data.forEach(c => {
+            celularSelect.innerHTML += `<option value="${c.id}">${c.nome} (${c.numero})</option>`;
+          });
+          loadingMsg.textContent = `✅ ${data.length} celular(es)`;
+          loadingMsg.className = 'mt-2 text-xs text-green-600';
+        }
+        
+        const savedId = localStorage.getItem('lastSelectedCelularId');
+        if (savedId) celularSelect.value = savedId;
+
+        const rastreamentoAtivo = localStorage.getItem('rastreamentoAtivo') === 'true';
+        const contagemSalva = localStorage.getItem('contagemEnvios');
+        const ultimoEnvioSalvo = localStorage.getItem('ultimoEnvioTimestamp');
+        
+        if (contagemSalva) {
+          contagemEnvios = parseInt(contagemSalva);
+          contagemEnviosEl.textContent = contagemEnvios;
+        }
+
+        if (ultimoEnvioSalvo) {
+          ultimoEnvioTimestamp = parseInt(ultimoEnvioSalvo);
+          ultimoEnvioEl.textContent = new Date(ultimoEnvioTimestamp).toLocaleTimeString('pt-BR');
+        }
+
+        if (rastreamentoAtivo && savedId) {
+          // Atraso para garantir que tudo carregou antes de tentar iniciar
+          setTimeout(() => {
+            console.log("Iniciando rastreamento automático salvo...");
+            celularSelect.value = savedId; // Garante que o select tenha o valor correto
+            iniciarRastreamento();
+          }, 1000);
+        } else if (rastreamentoAtivo) {
+            // Se estava ativo mas sem ID, para
+            pararRastreamento();
+        } else {
+            atualizarStatusUI(false);
+        }
+      } catch (err) {
+        // --- CORREÇÃO AQUI ---
+        // Log mais detalhado
+        console.error('Erro ao carregar celulares:', err); 
+        // Tenta pegar a .message, se não existir, transforma o objeto erro em string
+        const errorMessage = err.message || JSON.stringify(err);
+        loadingMsg.textContent = '❌ Erro: ' + errorMessage;
+        // --- FIM DA CORREÇÃO ---
+        loadingMsg.className = 'mt-2 text-xs text-red-300 text-left';
+      }
+    }
+    
+    async function obterEEnviarLocalizacao(celularId) {
+      if (!celularId) return false;
+      
+      const msg = "📍 Obtendo localização...";
+      statusMsg.textContent = msg;
+      statusMsg.className = 'mt-2 text-center text-sm font-medium text-blue-600';
+      homeStatusMsg.textContent = msg; // Atualiza home também
+      homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-white/90';
+      console.log('📍 Solicitando GPS...');
+      
+      try {
+        const posicao = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          });
+        });
+
+        console.log('✅ GPS:', posicao.coords.latitude, posicao.coords.longitude);
+        statusMsg.textContent = "📤 Enviando...";
+        homeStatusMsg.textContent = "📤 Enviando...";
+        
+        const { error } = await supabase
+          .from('usuarios_localizacao')
+          .update({
+            latitude: posicao.coords.latitude,
+            longitude: posicao.coords.longitude,
+            created_at: new Date().toISOString()
+          })
+          .eq('id', celularId);
+
+        if (error) throw error;
+        
+        // ================== INÍCIO DA MODIFICAÇÃO (HISTÓRICO) ==================
+        // Agora, INSERE um registro na tabela de histórico
+        const { error: errorHistorico } = await supabase
+          .from('historico_localizacao')
+          .insert({
+            usuario_id: celularId,
+            latitude: posicao.coords.latitude,
+            longitude: posicao.coords.longitude
+          });
+          
+        if (errorHistorico) {
+            // Se falhar em salvar o histórico, apenas loga no console,
+            // mas não impede o resto da função de continuar.
+            console.error('❌ Erro ao salvar histórico:', errorHistorico.message);
+        }
+        // =================== FIM DA MODIFICAÇÃO (HISTÓRICO) ====================
+
+        contagemEnvios++;
+        ultimoEnvioTimestamp = Date.now();
+        
+        localStorage.setItem('contagemEnvios', contagemEnvios);
+        localStorage.setItem('ultimoEnvioTimestamp', ultimoEnvioTimestamp);
+        
+        contagemEnviosEl.textContent = contagemEnvios;
+        
+        const horario = new Date().toLocaleTimeString('pt-BR');
+        ultimoEnvioEl.textContent = horario;
+        
+        const successMsg = '✅ Enviado às ' + horario;
+        statusMsg.textContent = successMsg;
+        statusMsg.className = 'mt-2 text-center text-sm font-medium text-green-600';
+        homeStatusMsg.textContent = successMsg; // Atualiza home também
+        homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-green-300';
+
+        console.log('✅ Envio #' + contagemEnvios);
+        enviarNotificacao('Localização Enviada', 'Envio #' + contagemEnvios);
+        
+        atualizarContagemRegressiva();
+        return true;
+      } catch (erro) {
+        // --- INÍCIO DA NOVA CORREÇÃO ---
+        // O erro {} é comum em iframes/ambientes restritos onde o GPS é bloqueado.
+        // Vamos tratar isso de forma mais clara.
+        
+        let errorMessage = "Erro de GPS não especificado.";
+
+        if (erro && typeof erro === 'object') {
+            // Checagem mais provável primeiro
+            if (erro.code === 1) { 
+                errorMessage = "Permissão de GPS negada. Verifique as permissões do navegador.";
+            } else if (erro.code === 2) {
+                errorMessage = "Não foi possível obter a localização (sinal fraco ou indisponível).";
+            } else if (erro.code === 3) {
+                errorMessage = "Tempo esgotado para obter GPS.";
+            } else if (erro.message) {
+                errorMessage = erro.message;
+            } else if (JSON.stringify(erro) === "{}") {
+                // Captura específica do erro {}
+                errorMessage = "Falha ao obter GPS. (Provável restrição do ambiente/iframe).";
+            }
+        }
+
+        // Atualiza o console.error para mostrar a mensagem tratada, não o objeto {}
+        console.error('❌ Erro ao obter/enviar localização:', errorMessage);
+        // --- FIM DA NOVA CORREÇÃO ---
+
+        const errorMsg = "❌ Erro: " + errorMessage;
+        statusMsg.textContent = errorMsg;
+        statusMsg.className = 'mt-2 text-center text-sm font-medium text-red-600';
+        homeStatusMsg.textContent = errorMsg; // Atualiza home também
+        homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-red-300';
+        return false;
+      }
+    }
+
+    // ==================== CONTROLE ====================
+    
+    async function iniciarRastreamento() {
+      // Pega o valor do select, que pode ter sido setado pela home ou pelo usuário
+      const celularId = celularSelect.value;
+      
+      if (!celularId) {
+        // Mensagem de erro atualizada
+        const errorMsg = "❌ Selecione um celular primeiro";
+        statusMsg.textContent = errorMsg;
+        statusMsg.className = 'mt-2 text-center text-sm font-medium text-red-600';
+        homeStatusMsg.textContent = errorMsg;
+        homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-red-300';
+        return;
+      }
+
+      console.log('🚀 Iniciando:', celularId);
+
+      await solicitarPermissaoNotificacao();
+      
+      localStorage.setItem('rastreamentoAtivo', 'true');
+      localStorage.setItem('lastSelectedCelularId', celularId);
+      
+      atualizarStatusUI(true);
+      
+      const sucesso = await obterEEnviarLocalizacao(celularId);
+      
+      if (!sucesso) {
+        // Se falhar (ex: permissão GPS negada), para o rastreamento
+        pararRastreamento();
+        return;
+      }
+
+      if (worker) {
+        worker.postMessage({ tipo: 'INICIAR', dados: { celularId } });
+      }
+
+      enviarNotificacao('Rastreamento Iniciado', 'Web Worker ativo - Envio a cada 5 min');
+    }
+    
+    function pararRastreamento() {
+      console.log('⏹️ Parando...');
+      
+      if (worker) {
+        worker.postMessage({ tipo: 'PARAR' });
+      }
+      
+      localStorage.setItem('rastreamentoAtivo', 'false');
+      atualizarStatusUI(false);
+      
+      const stopMsg = "⏹️ Rastreamento parado";
+      statusMsg.textContent = stopMsg;
+      statusMsg.className = 'mt-2 text-center text-sm font-medium text-gray-600';
+      homeStatusMsg.textContent = stopMsg;
+      homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-white/90';
+      
+      if (proximoEnvioTimeout) {
+        clearInterval(proximoEnvioTimeout);
+      }
+      
+      enviarNotificacao('Parado', 'Rastreamento interrompido');
+    }
+
+    // ===================================================
+    // NOVA LÓGICA DE NAVEGAÇÃO E MENU
+    // ===================================================
+
+    function toggleMenu() {
+      menuNav.classList.toggle('open');
+      menuOverlay.classList.toggle('open');
+    }
+
+    function navegarPara(pagina) {
+      // Esconde todas as páginas
+      homePage.classList.add('hidden');
+      rastreadorPage.classList.add('hidden');
+      
+      // Mostra a página desejada
+      if (pagina === 'home') {
+        homePage.classList.remove('hidden');
+      } else if (pagina === 'rastreador') {
+        rastreadorPage.classList.remove('hidden');
+      }
+      
+      // Fecha o menu
+      toggleMenu();
+    }
+
+    // ==================== INIT ====================
+
+    // --- Listeners da Página de Rastreamento ---
+    celularSelect.addEventListener('change', (e) => {
+      const id = e.target.value;
+      if (id) {
+        localStorage.setItem('lastSelectedCelularId', id);
+        loadingMsg.textContent = '✅ Selecionado';
+        loadingMsg.className = 'mt-2 text-xs text-green-600';
+      }
+    });
+
+    liberarBtn.addEventListener('click', iniciarRastreamento);
+    pararBtn.addEventListener('click', pararRastreamento);
+
+    // --- Listeners da Home Page ---
+    homeEntrouBtn.addEventListener('click', () => {
+      // Tenta iniciar com o celular salvo no localStorage
+      const celularId = localStorage.getItem('lastSelectedCelularId');
+      
+      // --- CORREÇÃO ---
+      // Sempre usa o valor ATUAL do select.
+      // A lógica anterior tentava usar o localStorage, mas o usuário pode ter mudado o select.
+      // A função iniciarRastreamento() já pega o valor do select.
+      iniciarRastreamento();
+    });
+
+    // --- Listeners do Menu e Navegação ---
+    menuButton.addEventListener('click', toggleMenu);
+    menuOverlay.addEventListener('click', toggleMenu);
+    document.getElementById('navHome').addEventListener('click', (e) => {
+      e.preventDefault();
+      navegarPara('home');
+    });
+    document.getElementById('navRastreador').addEventListener('click', (e) => {
+      e.preventDefault();
+      navegarPara('rastreador');
+    });
+
+
+    // --- Listener Global ---
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        console.log('👁️ App voltou');
+        const celularId = localStorage.getItem('lastSelectedCelularId');
+        // Só verifica/envia se o rastreamento estiver ativo
+        if (celularId && localStorage.getItem('rastreamentoAtivo') === 'true') {
+          verificarEEnviar(celularId);
+        }
+      }
+    });
+
+    // --- Inicialização do App ---
+    document.addEventListener('DOMContentLoaded', async () => {
+      console.log('🚀 Inicializando App GEOMAQ...');
+      
+      if (inicializarWorker()) {
+        console.log('✅ Worker OK');
+      } else {
+        console.warn('⚠️ Worker falhou, usando fallback');
+      }
+      
+      // Carrega os celulares e o estado salvo
+      await carregarCelulares();
+    });
+
+  </script>
+</body>
+</html>

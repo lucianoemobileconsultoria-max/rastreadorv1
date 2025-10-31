@@ -1,383 +1,766 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rastreador GPS</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .container {
-            background: white;
-            border-radius: 20px;
-            padding: 40px;
-            max-width: 400px;
-            width: 100%;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-
-        .icon {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 40px;
-        }
-
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 24px;
-        }
-
-        .status {
-            text-align: center;
-            padding: 12px;
-            border-radius: 10px;
-            margin: 20px 0;
-            font-weight: 500;
-            font-size: 14px;
-        }
-
-        .status.inactive {
-            background: #fee;
-            color: #c33;
-        }
-
-        .status.active {
-            background: #efe;
-            color: #3c3;
-        }
-
-        .status.error {
-            background: #ffe;
-            color: #cc8800;
-        }
-
-        .info {
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-            font-size: 12px;
-            color: #666;
-        }
-
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 8px 0;
-            padding: 5px 0;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        .info-row:last-child {
-            border-bottom: none;
-        }
-
-        .info-label {
-            font-weight: 600;
-            color: #333;
-        }
-
-        button {
-            width: 100%;
-            padding: 18px;
-            font-size: 16px;
-            font-weight: 600;
-            color: white;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-        }
-
-        button:active {
-            transform: translateY(0);
-        }
-
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .select-wrapper {
-            margin-bottom: 20px;
-        }
-
-        select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 14px;
-            color: #333;
-            background: white;
-            cursor: pointer;
-        }
-
-        select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .loading {
-            text-align: center;
-            color: #666;
-            font-size: 14px;
-            margin: 20px 0;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Painel de LOCALIZADOR DE MÁQUINAS</title>
+  
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🏗️</text></svg>">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    #map { height: 85vh; width: 100%; }
+    .leaflet-popup-content-wrapper { border-radius: 0.75rem; }
+    .leaflet-popup-content { font-size: 1rem; }
+  </style>
 </head>
-<body>
-    <div class="container">
-        <div class="icon">📍</div>
-        <h1>Rastreador GPS</h1>
-        
-        <div id="loadingDevices" class="loading">Carregando dispositivos...</div>
-        
-        <div id="deviceSelector" class="select-wrapper" style="display: none;">
-            <select id="deviceSelect">
-                <option value="">Selecione um dispositivo</option>
-            </select>
-        </div>
+<body class="bg-gradient-to-br from-indigo-700 via-purple-700 to-violet-800 min-h-screen">
+  <nav class="bg-white/90 shadow-lg mb-5 flex items-center justify-between px-6 py-3">
+  
+  </nav>
 
-        <div id="status" class="status inactive">
-            RASTREAMENTO DESATIVADO
-        </div>
+  <main class="mx-auto px-4 w-full">
+    <section class="mb-7 flex flex-col md:flex-row gap-4 items-center justify-between">
+      <h1 class="text-3xl md:text-4xl font-extrabold text-white mb-3 md:mb-0 drop-shadow-lg">
+        LOCALIZADOR DE MÁQUINAS
+      </h1>
+      <button id="atualizarBtn"
+        class="bg-white hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-5 rounded-lg shadow transition-all">
+        Atualizar Dados
+      </button>
+    </section>
+    <div class="bg-white/90 rounded-2xl shadow-lg p-2 mb-4 h-full flex flex-col md:flex-row gap-5">
+      <div class="flex-1 min-w-0">
+        <div id="map" class="rounded-2xl overflow-hidden shadow-lg"></div>
+      </div>
+	      <div class="md:w-96 flex flex-col gap-5 justify-between">
+	        
+          <button id="toggleIconesMenuBtn" class="w-full bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-3 px-4 rounded-lg shadow transition-all flex justify-between items-center">
+            <span>Gerenciar Ícones</span>
+            <span id="menuIconeChevron" class="transform transition-transform">▼</span>
+          </button>
 
-        <div id="info" class="info" style="display: none;">
-            <div class="info-row">
-                <span class="info-label">Latitude:</span>
-                <span id="latitude">-</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Longitude:</span>
-                <span id="longitude">-</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Precisão:</span>
-                <span id="accuracy">-</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Última atualização:</span>
-                <span id="lastUpdate">-</span>
-            </div>
-        </div>
+	        <div id="menuIconesContainer" class="hidden -mt-4"> <div id="crudIcones" class="bg-white rounded-lg shadow-inner p-4"> 
+	            <div class="bg-white rounded-xl shadow px-4 py-3 mb-4">
+	              <h3 id="formIconeTitulo" class="text-lg font-bold text-indigo-700 mb-2">Cadastrar Novo Ícone</h3>
+	              <form id="cadastroIconeForm" class="flex flex-col gap-3">
+	                <input type="hidden" id="editIconeId" name="editIconeId" />
+	                <div>
+	                  <label for="nomeIcone" class="block text-xs font-semibold text-gray-700 mb-1">Nome:</label>
+	                  <input type="text" id="nomeIcone" name="nomeIcone" required class="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+	                </div>
+	                <div>
+	                  <label for="urlIcone" class="block text-xs font-semibold text-gray-700 mb-1">URL/Nome do Ícone (Geoapify/FontAwesome):</label>
+	                  <input type="text" id="urlIcone" name="urlIcone" required class="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ex: mobile-alt, home, car" />
+	                </div>
+	                <button type="submit" class="bg-indigo-700 text-white font-bold py-1 px-4 rounded shadow hover:bg-indigo-800 transition" id="submitIconeBtn">Cadastrar Ícone</button>
+	                <button type="button" class="bg-gray-500 text-white font-bold py-1 px-4 rounded shadow hover:bg-gray-600 transition hidden" id="cancelEditIconeBtn">Cancelar Edição</button>
+	                <p id="mensagemCadastroIcone" class="mt-1 text-xs"></p>
+	              </form>
+	            </div>
+	            <ul id="listaIcones" class="flex flex-wrap gap-2 mb-4">
+	              </ul>
+	          </div>
+          </div>
 
-        <button id="toggleBtn">ATIVAR RASTREADOR</button>
+          <button id="toggleCadastroMenuBtn" class="w-full bg-white hover:bg-indigo-50 text-indigo-700 font-bold py-3 px-4 rounded-lg shadow transition-all flex justify-between items-center -mt-4"> <span id="tituloMenuCadastro">Cadastrar Novo Celular</span>
+            <span id="menuCadastroChevron" class="transform transition-transform">▼</span>
+          </button>
+
+	        <div id="menuCadastroContainer" class="hidden -mt-4"> <div class="bg-white rounded-xl shadow-inner px-4 py-3">
+              <form id="cadastroForm" class="flex flex-col gap-3">
+                <input type="hidden" id="editId" name="editId" />
+                <div>
+                  <label for="nome" class="block text-xs font-semibold text-gray-700 mb-1">Nome:</label>
+                  <input type="text" id="nome" name="nome" required class="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label for="numero" class="block text-xs font-semibold text-gray-700 mb-1">Número do celular:</label>
+                  <input type="text" id="numero" name="numero" required class="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label for="icone_maquina" class="block text-xs font-semibold text-gray-700 mb-1">Ícone:</label>
+                  <select id="icone_maquina" name="icone_maquina" class="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </select>
+                </div>
+                <button type="submit" class="bg-indigo-700 text-white font-bold py-1 px-4 rounded shadow hover:bg-indigo-800 transition" id="submitBtn">Cadastrar</button>
+                <button type="button" class="bg-gray-500 text-white font-bold py-1 px-4 rounded shadow hover:bg-gray-600 transition hidden" id="cancelEditBtn">Cancelar</button>
+                <p id="mensagemCadastro" class="mt-1 text-xs"></p>
+              </form>
+            </div>
+          </div>
+          <div>
+	          <h2 class="text-xl text-indigo-700 font-bold mb-2">Celulares cadastrados</h2>
+	          <ul id="listaCelulares" class="flex-1 space-y-2"></ul>
+	        </div>
+            
+            <div>
+              <h2 class="text-xl text-indigo-700 font-bold mb-2">Histórico de Trajeto</h2>
+              
+              <div class="flex gap-2 items-center mb-2">
+                <label for="dataTrajeto" class="text-sm font-medium text-gray-700">Filtrar por Dia:</label>
+                <input type="date" id="dataTrajeto" class="p-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              </div>
+
+              <div id="historicoContainer" class="bg-indigo-50 rounded-lg shadow-inner border-l-4 border-indigo-500 p-3 max-h-60 overflow-y-auto">
+                  <p id="historicoStatus" class="text-gray-500">Selecione "Trajeto" de um celular para ver o histórico.</p>
+                  <table id="historicoTabela" class="min-w-full text-sm hidden">
+                      <thead class="border-b-2 border-indigo-200">
+                          <tr>
+                              <th class="text-left font-semibold p-1">Data/Hora</th>
+                              <th class="text-left font-semibold p-1">Coords</th>
+                          </tr>
+                      </thead>
+                      <tbody id="historicoLista"></tbody>
+                  </table>
+              </div>
+            </div>
+            </div>
     </div>
+    <footer class="mt-8 text-white/70 text-center">Painel - SupabaseDB © 2025</footer>
+  </main>
 
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getDatabase, ref, onValue, update, set } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyAXNiNCu6UFe2t4RshDFBI-MvsnXVtwTRs",
-            authDomain: "rastreadorv1.firebaseapp.com",
-            databaseURL: "https://rastreadorv1-default-rtdb.firebaseio.com",
-            projectId: "rastreadorv1",
-            storageBucket: "rastreadorv1.firebasestorage.app",
-            messagingSenderId: "626621254007",
-            appId: "1:626621254007:web:feab6e99caf7a6d6157972"
-        };
+  <script>
+    // Troque pelos seus dados!
+    const SUPABASE_URL = 'https://rptxfjlxymfmxucctuhc.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwdHhmamx4eW1mbXh1Y2N0dWhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1NTcxNjMsImV4cCI6MjA3NzEzMzE2M30.kQSF0jp_-0Qi2AmHQNKz6eTo7zeEi3b7Lk9UjT216dU';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const app = initializeApp(firebaseConfig);
-        const database = getDatabase(app);
+    const apiKey = "9452fa947c234c90b794bf2d1b8c5eb4"; // Geoapify para Leaflet
+    const map = L.map('map').setView([-14.2, -51.9], 4);
+    
+    let polylineLayer = null; // Guarda a linha do trajeto no mapa
 
-        let isTracking = false;
-        let watchId = null;
-        let selectedDeviceId = null;
+    // 1. Defina as duas camadas de mapa (Layers)
+    const osmLibertyLayer = L.tileLayer(`https://maps.geoapify.com/v1/tile/osm-liberty/{z}/{x}/{y}.png?apiKey=${apiKey}`, {
+      attribution: '© OpenStreetMap, Geoapify',
+      maxZoom: 19,
+    });
+    
+    // [SOLUÇÃO FINAL - Satélite Gratuito da Esri]
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+      maxZoom: 19
+    });
 
-        const statusEl = document.getElementById('status');
-        const infoEl = document.getElementById('info');
-        const toggleBtn = document.getElementById('toggleBtn');
-        const deviceSelect = document.getElementById('deviceSelect');
-        const loadingEl = document.getElementById('loadingDevices');
-        const selectorEl = document.getElementById('deviceSelector');
+    // 2. Adicione a camada que você quer que seja a padrão
+    osmLibertyLayer.addTo(map);
 
-        // Carregar dispositivos do Firebase (somente leitura)
-        const devicesRef = ref(database, 'devices');
-        onValue(devicesRef, (snapshot) => {
-            const devices = snapshot.val();
-            loadingEl.style.display = 'none';
+    // 3. Crie o objeto com as camadas base para o controle
+    const baseMaps = {
+      "Mapa (Padrão)": osmLibertyLayer,
+      "Satélite": satelliteLayer 
+    };
+
+    // 4. Adicione o controle de camadas ao mapa
+    L.control.layers(baseMaps).addTo(map);
+
+    // --- 2. NOVO: FUNÇÕES DE COMPARTILHAMENTO E DELEÇÃO DO POPUP ---
+
+    // Função para o botão "Copiar" (ATUALIZADA)
+    function copiarCoords(lat, lng) {
+      const googleMapsLink = `http://googleusercontent.com/maps/google.com/0{lat},${lng}`;
+      navigator.clipboard.writeText(googleMapsLink).then(() => {
+        alert('Link do Google Maps copiado!');
+      }, () => {
+        alert('Falha ao copiar o link.');
+      });
+    }
+
+    // Função para o botão "WhatsApp" (CORRIGIDA)
+    function shareWhatsApp(nome, lat, lng) {
+      const googleMapsLink = `http://googleusercontent.com/maps/google.com/0{lat},${lng}`;
+      const texto = `Localização para *${nome}*:\n${googleMapsLink}`;
+      
+      const whatsappLink = `https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`;
+      window.open(whatsappLink, '_blank');
+    }
+
+    // Função para o botão "Excluir" (NOVA)
+    async function deletarPonto(id) {
+      if (!confirm('Tem certeza que deseja excluir este Ponto de Interesse?')) return;
+
+      const { error } = await supabase
+        .from('usuarios_localizacao')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        alert("Erro ao excluir o ponto: " + error.message);
+      } else {
+        alert("Ponto excluído com sucesso!");
+        map.closePopup(); // Fecha o popup aberto
+        buscarCelulares(); // Recarrega os dados do mapa
+      }
+    }
+
+
+    // --- 3. MODIFICADO: Função buscarCelulares atualizada ---
+    async function buscarCelulares() {
+      const { data: lista, error } = await supabase
+        .from('usuarios_localizacao')
+        .select('*'); 
+      if (error) {
+        document.getElementById('listaCelulares').innerHTML = '<li class="text-red-500">Erro ao buscar dados</li>';
+        return;
+      }
+
+      if (window.markers) window.markers.forEach(m => map.removeLayer(m));
+      window.markers = [];
+      document.getElementById('listaCelulares').innerHTML = '';
+
+      (lista || []).filter(c => c.latitude && c.longitude).forEach(({ id, nome, numero, latitude, longitude, created_at, icone_maquina }) => {
+        
+        // --- Lógica de ícone atualizada ---
+        const isPontoMarcado = !numero; // Se NÃO tem número (ou é ''), é um ponto (máquina)
+        
+        const iconeCor = isPontoMarcado ? '%23c91f1f' : '%23631fc9'; // Vermelho para ponto, Roxo para celular
+        const iconeLabel = isPontoMarcado ? 'location-pin' : (icone_maquina || 'mobile-alt'); // Icone 'pino' para ponto, icone do celular para... celular
+
+        const markerIcon = L.icon({
+          iconUrl: `https://api.geoapify.com/v1/icon/?type=material&color=${iconeCor}&size=large&icon=${iconeLabel}&apiKey=${apiKey}`,
+          iconSize: [38, 58],
+          iconAnchor: [19, 56],
+          popupAnchor: [0, -50],
+        });
+        // --- Fim da lógica de ícone ---
+
+        // --- Lógica de Popup atualizada ---
+        const texto = `
+          <div class="text-indigo-700 font-bold text-lg mb-1">${nome}</div>
+          ${numero ? 
+            `<div class="font-medium text-gray-600">Celular: <span>${numero}</span></div>` : 
+            '<div class="font-medium text-gray-600">Ponto de Interesse</div>'
+          }
+          <div class="text-xs text-gray-600 mt-1">Registrado: ${created_at ? new Date(created_at).toLocaleString('pt-BR') : '---'}</div>
+          <div class="text-xs text-gray-600">Lat: ${latitude?.toFixed(6)}, Lng: ${longitude?.toFixed(6)}</div>
+          
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button onclick="copiarCoords(${latitude}, ${longitude})" class="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-1 px-2 rounded transition-all">Copiar</button>
+            <button onclick="shareWhatsApp('${nome.replace(/'/g, "\\'")}', ${latitude}, ${longitude})" class="bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-2 rounded transition-all">WhatsApp</button>
+            ${isPontoMarcado ? 
+              `<button onclick="deletarPonto(${id})" class="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded transition-all">Excluir</button>` : 
+              ''
+            }
+          </div>
+        `;
+        // --- Fim da lógica de Popup ---
+
+        const marker = L.marker([latitude, longitude], { icon: markerIcon }).addTo(map).bindPopup(texto);
+        window.markers.push(marker);
+        
+        // A lista lateral só mostrará itens que são celulares (que têm número)
+        if (numero) {
+            const item = document.createElement('li');
+            item.className = 'px-3 py-2 bg-indigo-50 rounded-lg shadow border-l-4 border-indigo-500 text-sm font-medium flex items-center justify-between gap-2';
             
-            if (devices) {
-                selectorEl.style.display = 'block';
-                const currentSelectedValue = deviceSelect.value;
-                deviceSelect.innerHTML = '<option value="">Selecione um dispositivo</option>';
-                
-                Object.entries(devices).forEach(([id, device]) => {
-                    const option = document.createElement('option');
-                    option.value = id;
-                    option.textContent = `${device.name} - ${device.phoneNumber}`;
-                    deviceSelect.appendChild(option);
-                });
+            // innerHTML da lista de celulares modificado para incluir botão "Trajeto"
+            item.innerHTML = `
+              <div class="flex-1 min-w-0">
+                <span class="font-bold">${nome}</span>
+                <a href="tel:${numero}" class="block text-indigo-700 underline text-xs" title="Ligar">${numero}</a>
+                <span class="text-xs text-gray-500 font-normal">${created_at ? new Date(created_at).toLocaleString('pt-BR') : ''}</span>
+              </div>
+              <div class="flex flex-col gap-1 items-end">
+                <button class="verHistoricoBtn bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs py-1 px-2 rounded shadow w-full text-center" data-id="${id}" data-nome="${nome.replace(/'/g, "\\'")}">Trajeto</button>
+                <div class="flex gap-1">
+                  <button class="editarBtn bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-1 px-2 rounded shadow" data-id="${id}">Editar</button>
+                  <button class="deletarBtn bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-2 rounded shadow" data-id="${id}">Excluir</button>
+                </div>
+              </div>
+            `;
+            
+            document.getElementById('listaCelulares').appendChild(item);
+        }
+      });
 
-                if (Array.from(deviceSelect.options).some(opt => opt.value === currentSelectedValue)) {
-                    deviceSelect.value = currentSelectedValue;
-                }
+      if (window.markers && window.markers.length > 0) {
+        const marker = window.markers[window.markers.length - 1]; // Foca no último item adicionado
+        map.setView(marker.getLatLng(), 14);
+      }
+      setupEventListeners();
+    }
 
+    // --- NOVA FUNÇÃO AUXILIAR PARA ABRIR O MENU DE CADASTRO ---
+    function abrirMenuCadastro(isEdicao = false) {
+      const container = document.getElementById('menuCadastroContainer');
+      const chevron = document.getElementById('menuCadastroChevron');
+      const titulo = document.getElementById('tituloMenuCadastro');
+      
+      container.classList.remove('hidden');
+      chevron.textContent = '▲';
+      chevron.classList.add('rotate-180');
+      
+      if(isEdicao) {
+        titulo.textContent = 'Editar Celular';
+      } else {
+        titulo.textContent = 'Cadastrar Novo Celular';
+      }
+    }
+
+    // --- NOVA FUNÇÃO AUXILIAR PARA FECHAR O MENU DE CADASTRO ---
+    function fecharMenuCadastro() {
+      const container = document.getElementById('menuCadastroContainer');
+      const chevron = document.getElementById('menuCadastroChevron');
+      const titulo = document.getElementById('tituloMenuCadastro');
+      
+      container.classList.add('hidden');
+      chevron.textContent = '▼';
+      chevron.classList.remove('rotate-180');
+      titulo.textContent = 'Cadastrar Novo Celular';
+    }
+
+    // ================== FUNÇÃO DE HISTÓRICO TOTALMENTE ATUALIZADA ==================
+    async function buscarHistorico(usuarioId, nomeUsuario, dataSelecionada) {
+        const historicoStatus = document.getElementById('historicoStatus');
+        const historicoTabela = document.getElementById('historicoTabela');
+        const historicoLista = document.getElementById('historicoLista');
+        
+        if (!dataSelecionada) {
+            historicoStatus.textContent = "Por favor, selecione uma data.";
+            return;
+        }
+
+        historicoStatus.textContent = `Calculando trajeto de ${nomeUsuario} para ${dataSelecionada}...`;
+        historicoStatus.classList.remove('hidden');
+        historicoTabela.classList.add('hidden');
+        historicoLista.innerHTML = '';
+
+        // Limpa o trajeto anterior do mapa
+        if (polylineLayer) {
+            map.removeLayer(polylineLayer);
+            polylineLayer = null;
+        }
+
+        // Define o início e o fim do dia selecionado
+        const inicioDoDia = new Date(dataSelecionada);
+        inicioDoDia.setHours(0, 0, 0, 0);
+        const fimDoDia = new Date(dataSelecionada);
+        fimDoDia.setHours(23, 59, 59, 999);
+
+        // Busca no Supabase filtrando pelo ID e pelo intervalo de data
+        const { data, error } = await supabase
+            .from('historico_localizacao')
+            .select('latitude, longitude, created_at')
+            .eq('usuario_id', usuarioId)
+            .gte('created_at', inicioDoDia.toISOString())
+            .lte('created_at', fimDoDia.toISOString())
+            .order('created_at', { ascending: true }); // Ascendente para desenhar a linha na ordem correta
+
+        if (error) {
+            historicoStatus.textContent = `Erro ao buscar histórico: ${error.message}`;
+            return;
+        }
+
+        if (data.length < 2) {
+            historicoStatus.textContent = `Não há pontos suficientes (mín. 2) para ${nomeUsuario} neste dia.`;
+            return;
+        }
+        
+        // Preenche a tabela de histórico (mais recente primeiro)
+        data.slice().reverse().forEach(ponto => {
+            const item = document.createElement('tr');
+            item.className = 'border-b border-indigo-100 hover:bg-indigo-200';
+            item.innerHTML = `
+                <td class="p-1">${new Date(ponto.created_at).toLocaleString('pt-BR')}</td>
+                <td class="p-1 text-xs">${ponto.latitude.toFixed(4)}, ${ponto.longitude.toFixed(4)}</td>
+            `;
+            historicoLista.appendChild(item);
+        });
+        historicoTabela.classList.remove('hidden');
+
+        // Pega o primeiro e último horário
+        const primeiroHorario = new Date(data[0].created_at).toLocaleTimeString('pt-BR');
+        const ultimoHorario = new Date(data[data.length - 1].created_at).toLocaleTimeString('pt-BR');
+
+        // Formata os waypoints para a API da Geoapify
+        const waypoints = data.map(p => `${p.latitude},${p.longitude}`).join('|');
+        const routeUrl = `https://api.geoapify.com/v1/routing?waypoints=${waypoints}&mode=drive&apiKey=${apiKey}`;
+
+        try {
+            // Chama a API de Roteamento
+            const response = await fetch(routeUrl);
+            const routeData = await response.json();
+
+            if (routeData.features && routeData.features.length > 0) {
+                // Pega a distância total (em metros) e converte para KM
+                const distanciaEmMetros = routeData.features[0].properties.distance;
+                const distanciaEmKm = (distanciaEmMetros / 1000).toFixed(2);
+
+                // Pega a geometria da rota (que segue as ruas)
+                // GeoJSON vem como [lng, lat], Leaflet usa [lat, lng], por isso o .map(p => [p[1], p[0]])
+                const routeLine = routeData.features[0].geometry.coordinates[0].map(p => [p[1], p[0]]);
+
+                // Desenha a rota no mapa
+                polylineLayer = L.polyline(routeLine, { color: '#631fc9', weight: 5, opacity: 0.8 }).addTo(map);
+                map.fitBounds(polylineLayer.getBounds()); // Ajusta o zoom
+
+                // Atualiza o status com todas as informações
+                historicoStatus.textContent = `Trajeto: ${primeiroHorario} às ${ultimoHorario} (${distanciaEmKm} km)`;
             } else {
-                selectorEl.style.display = 'none';
-                statusEl.className = 'status error';
-                statusEl.textContent = 'Nenhum dispositivo cadastrado no sistema';
+                throw new Error("API da Geoapify não retornou uma rota.");
             }
-        });
-
-        deviceSelect.addEventListener('change', (e) => {
-            selectedDeviceId = e.target.value;
-            if (isTracking) {
-                stopTracking().then(startTracking);
-            }
-        });
-
-        // Helper to format date as YYYY-MM-DD
-        const getFormattedDate = (date) => {
-            const year = date.getFullYear();
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const day = date.getDate().toString().padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        };
-
-        function updateLocation(position) {
-            if (!selectedDeviceId) return;
-
-            const { latitude, longitude, accuracy } = position.coords;
-            const now = new Date();
-            const timestamp = now.getTime();
-            const dateKey = getFormattedDate(now);
-
-            // Atualiza a interface
-            document.getElementById('latitude').textContent = latitude.toFixed(6);
-            document.getElementById('longitude').textContent = longitude.toFixed(6);
-            document.getElementById('accuracy').textContent = `${accuracy.toFixed(0)}m`;
-            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
-
-            // Atualiza o nó principal do dispositivo
-            const deviceRef = ref(database, `devices/${selectedDeviceId}`);
-            update(deviceRef, {
-                latitude: latitude,
-                longitude: longitude,
-                lastUpdate: timestamp,
-                active: true
-            });
-
-            // Adiciona ao histórico do dia
-            const historyRef = ref(database, `history/${selectedDeviceId}/${dateKey}/${timestamp}`);
-            set(historyRef, {
-                lat: latitude,
-                lng: longitude,
-                timestamp: now.toISOString()
-            });
-        }
-
-        function handleError(error) {
-            console.error('Erro de geolocalização:', error);
-            statusEl.className = 'status error';
+        } catch (err) {
+            console.error("Erro ao calcular rota:", err);
+            historicoStatus.textContent = `Trajeto: ${primeiroHorario} às ${ultimoHorario} (Erro ao calcular KM)`;
             
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    statusEl.textContent = 'Permissão de localização negada';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    statusEl.textContent = 'Localização não disponível';
-                    break;
-                case error.TIMEOUT:
-                    statusEl.textContent = 'Tempo esgotado ao buscar localização';
-                    break;
-                default:
-                    statusEl.textContent = 'Erro desconhecido ao buscar localização';
-            }
+            // Fallback: Desenha uma linha reta simples se a API de rota falhar
+            const latlngs = data.map(p => [p.latitude, p.longitude]);
+            polylineLayer = L.polyline(latlngs, { color: '#c91f1f', weight: 3, opacity: 0.8, dashArray: '5, 10' }).addTo(map);
+            map.fitBounds(polylineLayer.getBounds());
         }
+    }
+    // =================== FIM DA FUNÇÃO DE HISTÓRICO ====================
 
-        function startTracking() {
-            if (!selectedDeviceId) {
-                alert('Por favor, selecione um dispositivo primeiro');
+    function setupEventListeners() {
+      // ================== LISTENER DO HISTÓRICO ATUALIZADO ==================
+      const verHistoricoBtns = document.querySelectorAll('.verHistoricoBtn');
+      // =================== FIM DA MODIFICAÇÃO ====================
+
+      const editarBtns = document.querySelectorAll('.editarBtn');
+      const deletarBtns = document.querySelectorAll('.deletarBtn');
+      const form = document.getElementById('cadastroForm');
+      const submitBtn = document.getElementById('submitBtn');
+      const cancelEditBtn = document.getElementById('cancelEditBtn');
+      const mensagemCadastro = document.getElementById('mensagemCadastro');
+      const editId = document.getElementById('editId');
+	      const nomeInput = document.getElementById('nome');
+	      const numeroInput = document.getElementById('numero');
+	      const iconeMaquinaInput = document.getElementById('icone_maquina'); // Novo
+	
+      // ================== LISTENER DO HISTÓRICO ATUALIZADO ==================
+      // Adiciona o listener para os novos botões "Trajeto"
+      verHistoricoBtns.forEach(btn => {
+        btn.onclick = () => {
+            const id = btn.getAttribute('data-id');
+            const nome = btn.getAttribute('data-nome');
+            
+            // Pega a data do novo input
+            const dataSelecionada = document.getElementById('dataTrajeto').value;
+            
+            if (!dataSelecionada) {
+                alert("Por favor, selecione uma data para ver o trajeto.");
                 return;
             }
+            
+            buscarHistorico(id, nome, dataSelecionada);
+        };
+      });
+      // =================== FIM DA MODIFICAÇÃO ====================
 
-            if (!navigator.geolocation) {
-                alert('Geolocalização não suportada neste navegador');
-                return;
-            }
+	      editarBtns.forEach(btn => {
+	        btn.onclick = async () => {
+	          const id = btn.getAttribute('data-id');
+	          mensagemCadastro.textContent = "Carregando dados...";
+            
+            // --- ATUALIZADO ---
+            // Abre o menu de cadastro ao clicar em "Editar"
+            abrirMenuCadastro(true); 
 
-            isTracking = true;
-            statusEl.className = 'status active';
-            statusEl.textContent = 'RASTREAMENTO ATIVO';
-            infoEl.style.display = 'block';
-            toggleBtn.textContent = 'DESATIVAR RASTREADOR';
-            deviceSelect.disabled = true;
+	          const { data, error } = await supabase
+	            .from('usuarios_localizacao')
+	            .select('*')
+	            .eq('id', id)
+	            .single();
+	          if (error) {
+	            mensagemCadastro.textContent = "Erro ao carregar dados: " + error.message;
+	            return;
+	          }
+	          editId.value = data.id;
+	          nomeInput.value = data.nome;
+		          numeroInput.value = data.numero;
+	          iconeMaquinaInput.value = data.icone_maquina || ""; // Novo: Define o ícone selecionado
+		          submitBtn.textContent = "Salvar";
+	          cancelEditBtn.classList.remove('hidden');
+	          mensagemCadastro.textContent = "";
+	        };
+	      });
 
-            watchId = navigator.geolocation.watchPosition(
-                updateLocation,
-                handleError,
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
+	      cancelEditBtn.onclick = () => {
+		        editId.value = "";
+		        nomeInput.value = "";
+		        numeroInput.value = "";
+		        iconeMaquinaInput.value = ""; // Novo: Limpa o select
+		        submitBtn.textContent = "Cadastrar";
+            cancelEditBtn.classList.add('hidden');
+            mensagemCadastro.textContent = "";
+
+            // --- ATUALIZADO ---
+            // Fecha o menu ao cancelar
+            fecharMenuCadastro();
+      };
+
+      deletarBtns.forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm('Tem certeza que deseja excluir este registro?')) return;
+          const id = btn.getAttribute('data-id');
+          const { error } = await supabase
+            .from('usuarios_localizacao')
+            .delete()
+            .eq('id', id);
+          if (error) {
+            alert("Erro ao excluir: " + error.message);
+            return;
+          }
+          buscarCelulares();
+        };
+      });
+
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        mensagemCadastro.textContent = "Enviando dados...";
+        const id = editId.value;
+		        const payload = {
+		          nome: nomeInput.value,
+		          numero: numeroInput.value,
+		          icone_maquina: iconeMaquinaInput.value || null // Novo: Inclui o ícone selecionado
+		        };
+        if (id) {
+          const { error } = await supabase
+            .from('usuarios_localizacao')
+            .update(payload)
+            .eq('id', id);
+          if (error) {
+            mensagemCadastro.textContent = "Erro ao atualizar: " + error.message;
+            return;
+          }
+          mensagemCadastro.textContent = "Dados atualizados com sucesso!";
+        } else {
+          const { error } = await supabase.from('usuarios_localizacao').insert([payload]);
+          if (error) {
+            mensagemCadastro.textContent = "Erro ao cadastrar: " + error.message;
+            return;
+          }
+          mensagemCadastro.textContent = "Celular cadastrado com sucesso!";
+        }
+        form.reset();
+        cancelEditBtn.classList.add('hidden');
+        submitBtn.textContent = "Cadastrar";
+        
+        // --- ATUALIZADO ---
+        // Fecha o menu após o submit
+        fecharMenuCadastro();
+
+	      buscarCelulares();
+	      };
+	    }
+	
+	    // --- Funções CRUD de Ícones ---
+	    async function buscarIcones() {
+	      const { data: icones, error } = await supabase
+	        .from('icones_maquina') // Ajustado para o nome da tabela do usuário
+	        .select('*');
+	
+	      if (error) {
+	        document.getElementById('listaIcones').innerHTML = '<li class="text-red-500">Erro ao buscar ícones</li>';
+	        return [];
+	      }
+	
+	      const listaIconesEl = document.getElementById('listaIcones');
+	      listaIconesEl.innerHTML = '';
+	
+	      (icones || []).forEach(icone => {
+	        const item = document.createElement('li');
+	        item.className = 'flex items-center gap-2 p-1 bg-gray-100 rounded shadow text-sm';
+		        item.innerHTML = `
+		          <img src="https://api.geoapify.com/v1/icon/?type=material&color=%23631fc9&size=small&icon=${icone.label_icone}&apiKey=${apiKey}" class="w-5 h-5" alt="${icone.nome_icone}">
+	          <span>${icone.nome_icone}</span>
+	          <div class="flex gap-1">
+	            <button class="editarIconeBtn bg-yellow-400 hover:bg-yellow-500 text-white font-bold text-xs py-0.5 px-1 rounded shadow" data-id="${icone.id}">E</button>
+	            <button class="deletarIconeBtn bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-0.5 px-1 rounded shadow" data-id="${icone.id}">X</button>
+	          </div>
+	        `;
+	        listaIconesEl.appendChild(item);
+	      });
+	
+	      setupIconeEventListeners(icones);
+	      return icones;
+	    }
+	
+	    function setupIconeEventListeners(icones) {
+	      const editarIconeBtns = document.querySelectorAll('.editarIconeBtn');
+	      const deletarIconeBtns = document.querySelectorAll('.deletarIconeBtn');
+	      const form = document.getElementById('cadastroIconeForm');
+	      const submitBtn = document.getElementById('submitIconeBtn');
+	      const cancelEditBtn = document.getElementById('cancelEditIconeBtn');
+	      const formTitulo = document.getElementById('formIconeTitulo');
+	      const mensagemCadastro = document.getElementById('mensagemCadastroIcone');
+	      const editId = document.getElementById('editIconeId');
+	      const nomeInput = document.getElementById('nomeIcone');
+	      const urlInput = document.getElementById('urlIcone');
+	
+	      editarIconeBtns.forEach(btn => {
+	        btn.onclick = () => {
+	          const id = btn.getAttribute('data-id');
+	          const icone = icones.find(i => i.id == id);
+	          if (!icone) return;
+	
+	          editId.value = icone.id;
+	          nomeInput.value = icone.nome_icone;
+	          urlInput.value = icone.label_icone; // Ajustado para o nome da coluna do usuário
+	          submitBtn.textContent = "Salvar Ícone";
+	          cancelEditBtn.classList.remove('hidden');
+	          formTitulo.textContent = "Editar Ícone";
+	          mensagemCadastro.textContent = "";
+	        };
+	      });
+	
+	      cancelEditBtn.onclick = () => {
+	        editId.value = "";
+	        nomeInput.value = "";
+	        urlInput.value = "";
+	        submitBtn.textContent = "Cadastrar Ícone";
+	        cancelEditBtn.classList.add('hidden');
+	        formTitulo.textContent = "Cadastrar Novo Ícone";
+	        mensagemCadastro.textContent = "";
+	      };
+	
+	      deletarIconeBtns.forEach(btn => {
+	        btn.onclick = async () => {
+	          if (!confirm('Tem certeza que deseja excluir este ícone? Todos os celulares que o utilizam ficarão com o ícone padrão.')) return;
+	          const id = btn.getAttribute('data-id');
+	          const { error } = await supabase
+	            .from('icones_maquina') // Ajustado para o nome da tabela do usuário
+	            .delete()
+            .eq('id', id);
+	          if (error) {
+	            alert("Erro ao excluir: " + error.message);
+	            return;
+	          }
+	          buscarIcones();
+	          buscarCelulares(); // Atualiza mapa e select
+	        };
+	      });
+	
+	      form.onsubmit = async (e) => {
+	        e.preventDefault();
+	        mensagemCadastro.textContent = "Enviando dados...";
+	        const id = editId.value;
+	        const payload = {
+	          nome_icone: nomeInput.value,
+	          label_icone: urlInput.value // Ajustado para o nome da coluna do usuário
+	        };
+	        if (id) {
+	          const { error } = await supabase
+	            .from('icones_maquina') // Ajustado para o nome da tabela do usuário
+	            .update(payload)
+	            .eq('id', id);
+	          if (error) {
+	            mensagemCadastro.textContent = "Erro ao atualizar ícone: " + error.message;
+	            return;
+	          }
+	          mensagemCadastro.textContent = "Ícone atualizado com sucesso!";
+	        } else {
+	          const { error } = await supabase.from('icones_maquina').insert([payload]); // Ajustado para o nome da tabela do usuário
+	          if (error) {
+	            mensagemCadastro.textContent = "Erro ao cadastrar ícone: " + error.message;
+	            return;
+          }
+	          mensagemCadastro.textContent = "Ícone cadastrado com sucesso!";
+	        }
+	        form.reset();
+	        cancelEditBtn.classList.add('hidden');
+	        submitBtn.textContent = "Cadastrar Ícone";
+	        document.getElementById('formIconeTitulo').textContent = "Cadastrar Novo Ícone";
+	        buscarIcones();
+	        carregarIconesParaSelect();
+	        buscarCelulares(); // Atualiza mapa
+	      };
+	    }
+	
+		    document.getElementById('atualizarBtn').onclick = buscarCelulares;
+		    
+		    async function carregarIconesParaSelect() {
+		      const { data: icones, error } = await supabase
+		        .from('icones_maquina')
+		        .select('label_icone, nome_icone');
+		
+		      if (error) {
+		        console.error("Erro ao carregar ícones para o select:", error.message);
+		        return;
+		      }
+		
+		      const selectEl = document.getElementById('icone_maquina');
+		      selectEl.innerHTML = '<option value="">(Padrão: mobile-alt)</option>'; // Opção padrão
+		
+		      (icones || []).forEach(icone => {
+		        const option = document.createElement('option');
+		        option.value = icone.label_icone;
+		        option.textContent = icone.nome_icone + ' (' + icone.label_icone + ')';
+		        selectEl.appendChild(option);
+		      });
+		    }
+
+        // --- 1. NOVO: OUVINTE DE CLIQUE PARA ADICIONAR PONTOS ---
+        map.on('click', async function(e) {
+          const nomeMaquina = prompt("Digite o nome da máquina/ponto de interesse:");
+
+          if (nomeMaquina) {
+            const { lat, lng } = e.latlng;
+            
+            // Salva no Supabase (mesma tabela, mas com 'numero' como texto vazio)
+            const { error } = await supabase
+              .from('usuarios_localizacao')
+              .insert([
+                { 
+                  nome: nomeMaquina, 
+                  latitude: lat, 
+                  longitude: lng,
+                  numero: '' // <--- CORREÇÃO APLICADA AQUI
                 }
-            );
-        }
+              ]);
 
-        function stopTracking() {
-            if (watchId !== null) {
-                navigator.geolocation.clearWatch(watchId);
-                watchId = null;
-            }
-
-            if (selectedDeviceId) {
-                const deviceRef = ref(database, `devices/${selectedDeviceId}`);
-                update(deviceRef, { active: false });
-            }
-
-            isTracking = false;
-            statusEl.className = 'status inactive';
-            statusEl.textContent = 'RASTREAMENTO DESATIVADO';
-            toggleBtn.textContent = 'ATIVAR RASTREADOR';
-            deviceSelect.disabled = false;
-        }
-
-        toggleBtn.addEventListener('click', () => {
-            if (isTracking) {
-                stopTracking();
+            if (error) {
+              alert("Erro ao salvar o ponto: " + error.message);
             } else {
-                startTracking();
+              alert("Ponto salvo com sucesso!");
+              buscarCelulares(); // Atualiza o mapa com o novo ponto
             }
+          }
         });
         
-        window.addEventListener('beforeunload', (e) => {
-            if (isTracking) {
-                stopTracking();
-            }
-        });
-    </script>
+        // --- NOVO: OUVINTE PARA MENU DE ÍCONES ---
+        document.getElementById('toggleIconesMenuBtn').onclick = function() {
+          const container = document.getElementById('menuIconesContainer');
+          const chevron = document.getElementById('menuIconeChevron');
+          
+          const isHidden = container.classList.toggle('hidden');
+          
+          if (isHidden) {
+            chevron.textContent = '▼';
+            chevron.classList.remove('rotate-180');
+          } else {
+            chevron.textContent = '▲';
+            chevron.classList.add('rotate-180'); 
+          }
+        };
+
+        // --- NOVO: OUVINTE PARA MENU DE CADASTRO DE CELULAR ---
+        document.getElementById('toggleCadastroMenuBtn').onclick = function() {
+          const container = document.getElementById('menuCadastroContainer');
+          const chevron = document.getElementById('menuCadastroChevron');
+          const isHidden = container.classList.contains('hidden');
+
+          if(isHidden) {
+            abrirMenuCadastro(false); // Abre com o título "Cadastrar"
+          } else {
+            fecharMenuCadastro();
+          }
+        };
+
+        // ================== INICIALIZAÇÃO ==================
+        
+        // Define o valor do input de data para "hoje" por padrão
+        document.getElementById('dataTrajeto').valueAsDate = new Date();
+
+		    buscarIcones(); // Adiciona a chamada para buscar ícones na inicialização
+		    carregarIconesParaSelect(); // Carrega os ícones no select
+		    buscarCelulares(); // Carrega os celulares e pontos no mapa
+
+		  </script>
 </body>
 </html>
