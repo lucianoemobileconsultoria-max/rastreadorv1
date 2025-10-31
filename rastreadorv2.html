@@ -182,6 +182,8 @@
     const installButton = document.getElementById('install-button');
 
     window.addEventListener('beforeinstallprompt', (e) => {
+      // Adicionado para depuração
+      console.log("✅ 'beforeinstallprompt' foi disparado! O PWA é instalável.");
       e.preventDefault();
       deferredPrompt = e;
       installContainer.classList.remove('hidden');
