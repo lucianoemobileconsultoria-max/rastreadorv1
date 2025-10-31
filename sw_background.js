@@ -1,27 +1,29 @@
-const CACHE_NAME = 'rastreador-background-v4';
+const CACHE_NAME = 'geomad-cache-v1';
 const urlsToCache = [
-  './',
-  './rastreadorv1.html',
-  './index.html',
-  './manifest.json'
+  '/',
+  './rastreadorv2.html',
+  './manifest.json',
+  'https://cdn.tailwindcss.com',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js'
 ];
 
-// Instalar e cachear
+// Instalar e cachear os arquivos principais da aplicação
 self.addEventListener('install', event => {
-  console.log('[SW] Instalando v4 Background...');
+  console.log('[SW] Instalando Service Worker...');
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
+      console.log('[SW] Cache aberto, adicionando arquivos ao cache...');
       return cache.addAll(urlsToCache).catch(err => {
-        console.log('[SW] Erro ao cachear:', err);
+        console.error('[SW] Erro ao adicionar arquivos ao cache:', err);
       });
     })
   );
   self.skipWaiting();
 });
 
-// Ativar e limpar caches antigos
+// Ativar o Service Worker e limpar caches antigos
 self.addEventListener('activate', event => {
-  console.log('[SW] Ativando v4 Background...');
+  console.log('[SW] Ativando Service Worker...');
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
@@ -34,141 +36,29 @@ self.addEventListener('activate', event => {
       );
     })
   );
-  self.clients.claim();
+  return self.clients.claim();
 });
 
-// Interceptar requisições
+// Interceptar requisições de rede
 self.addEventListener('fetch', event => {
-  // Não cachear requisições ao Supabase
-  if (event.request.url.includes('supabase.co')) {
-    return event.respondWith(fetch(event.request));
+  const requestUrl = new URL(event.request.url);
+
+  // Ignora completamente as requisições para a API do Supabase, sempre buscando na rede.
+  if (requestUrl.hostname.includes('supabase.co')) {
+    return;
   }
-  
+
+  // Para todas as outras requisições, usa a estratégia "cache-first".
   event.respondWith(
     caches.match(event.request).then(response => {
-      return response || fetch(event.request);
+      // Se a resposta estiver no cache, retorna do cache.
+      if (response) {
+        return response;
+      }
+      // Se não, busca na rede.
+      return fetch(event.request);
     })
   );
 });
 
-// ==================== BACKGROUND SYNC ====================
-
-// Enviar localização periodicamente (mesmo em background)
-self.addEventListener('periodicsync', event => {
-  if (event.tag === 'enviar-localizacao') {
-    console.log('[SW] Periodic Sync disparado:', event.tag);
-    event.waitUntil(enviarLocalizacaoBackground());
-  }
-});
-
-// Background Sync (quando volta a conexão)
-self.addEventListener('sync', event => {
-  if (event.tag === 'enviar-localizacao-pendente') {
-    console.log('[SW] Sync disparado:', event.tag);
-    event.waitUntil(enviarLocalizacaoBackground());
-  }
-});
-
-// Função para enviar localização em background
-async function enviarLocalizacaoBackground() {
-  try {
-    console.log('[SW] Tentando enviar localização em background...');
-    
-    // Notificar todos os clientes
-    const clients = await self.clients.matchAll();
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'BACKGROUND_LOCATION_REQUEST',
-        timestamp: Date.now()
-      });
-    });
-    
-    console.log('[SW] Solicitação enviada para', clients.length, 'cliente(s)');
-    return true;
-  } catch (error) {
-    console.error('[SW] Erro ao enviar localização:', error);
-    return false;
-  }
-}
-
-// ==================== MENSAGENS DOS CLIENTES ====================
-
-self.addEventListener('message', event => {
-  console.log('[SW] Mensagem recebida:', event.data);
-  
-  if (event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-  
-  if (event.data.type === 'START_BACKGROUND_TRACKING') {
-    console.log('[SW] Iniciando rastreamento em background');
-    // Aqui poderia registrar Periodic Background Sync se o navegador suportar
-    registrarPeriodicSync();
-  }
-  
-  if (event.data.type === 'STOP_BACKGROUND_TRACKING') {
-    console.log('[SW] Parando rastreamento em background');
-    // Cancelar Periodic Background Sync
-    cancelarPeriodicSync();
-  }
-});
-
-// Registrar Periodic Background Sync (Chrome 80+)
-async function registrarPeriodicSync() {
-  try {
-    if ('periodicSync' in self.registration) {
-      await self.registration.periodicSync.register('enviar-localizacao', {
-        minInterval: 5 * 60 * 1000 // 5 minutos
-      });
-      console.log('[SW] ✅ Periodic Sync registrado (5 min)');
-    } else {
-      console.log('[SW] ⚠️ Periodic Sync não suportado');
-    }
-  } catch (error) {
-    console.error('[SW] ❌ Erro ao registrar Periodic Sync:', error);
-  }
-}
-
-// Cancelar Periodic Background Sync
-async function cancelarPeriodicSync() {
-  try {
-    if ('periodicSync' in self.registration) {
-      await self.registration.periodicSync.unregister('enviar-localizacao');
-      console.log('[SW] ✅ Periodic Sync cancelado');
-    }
-  } catch (error) {
-    console.error('[SW] ❌ Erro ao cancelar Periodic Sync:', error);
-  }
-}
-
-// ==================== PUSH NOTIFICATIONS ====================
-
-self.addEventListener('push', event => {
-  console.log('[SW] Push recebido:', event);
-  
-  const data = event.data ? event.data.json() : {};
-  const title = data.title || 'Rastreamento GPS';
-  const options = {
-    body: data.body || 'Localização enviada com sucesso',
-    icon: '/icon-192x192.png',
-    badge: '/icon-192x192.png',
-    tag: 'rastreamento-gps',
-    requireInteraction: false
-  };
-  
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
-});
-
-// Clique na notificação
-self.addEventListener('notificationclick', event => {
-  console.log('[SW] Notificação clicada');
-  event.notification.close();
-  
-  event.waitUntil(
-    clients.openWindow('/')
-  );
-});
-
-console.log('[SW] Service Worker v4 Background carregado! ✅');
+console.log('[SW] Service Worker carregado.');
