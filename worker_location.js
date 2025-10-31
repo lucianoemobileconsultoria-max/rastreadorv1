@@ -42,18 +42,18 @@ function iniciarRastreamento(idCelular) {
   
   celularId = idCelular;
   intervaloAtivo = true;
-  
-  // Primeira verificação imediata
-  verificarEEnviar();
-  
-  // Timer contínuo - Web Workers não são pausados!
+
   if (intervaloTimer) {
     clearInterval(intervaloTimer);
   }
   
+  // Primeira solicitação imediata
+  enviarSolicitacaoLocalizacao();
+  
+  // Timer contínuo para 5 minutos
   intervaloTimer = setInterval(() => {
-    verificarEEnviar();
-  }, 30000); // Verificar a cada 30 segundos
+    enviarSolicitacaoLocalizacao();
+  }, INTERVALO_MS);
   
   self.postMessage({
     tipo: 'RASTREAMENTO_INICIADO',
@@ -77,15 +77,14 @@ function pararRastreamento() {
   });
 }
 
-function verificarEEnviar() {
+function enviarSolicitacaoLocalizacao() {
   if (!intervaloAtivo || !celularId) {
-    console.log('[WORKER] Rastreamento inativo ou sem celular');
+    console.log('[WORKER] Rastreamento inativo ou sem celular, não vai solicitar localização.');
     return;
   }
   
-  console.log('[WORKER] ⏰ Verificando se precisa enviar...');
+  console.log('[WORKER] ⏰ Solicitando que a página principal envie a localização...');
   
-  // Solicitar à página principal que envie a localização
   self.postMessage({
     tipo: 'SOLICITAR_LOCALIZACAO',
     celularId: celularId,
