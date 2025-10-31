@@ -41,6 +41,11 @@
 </head>
 <body class="bg-gradient-to-br from-indigo-700 via-purple-700 to-violet-800 text-gray-900">
 
+  <!-- Elemento de áudio para manter o app ativo em background (fallback) -->
+  <audio id="silentAudio" loop>
+    <source src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" type="audio/wav">
+  </audio>
+
   <header class="bg-white/90 shadow-md p-4 flex justify-between items-center sticky top-0 z-20">
     <div>
       <h1 class="text-xl font-extrabold text-indigo-700 drop-shadow">GEOMAQ</h1>
@@ -53,7 +58,7 @@
     </button>
   </header>
 
-  <div id="menuOverlay" class="fixed inset-0 bg-black/50 z-20 md:hidden"></div>
+  <div id="menuOverlay" class="fixed inset-0 bg-black/50 z-20 md-hidden"></div>
 
   <nav id="menuNav" class="fixed top-0 left-0 h-full w-64 bg-white shadow-xl z-30 p-6">
     <h2 class="text-lg font-bold text-indigo-700 mb-6">Menu</h2>
@@ -115,6 +120,10 @@
               <span class="font-semibold text-purple-600">✓</span> Web Worker ativo
               <div class="text-[10px] text-gray-400 mt-1">Thread separada - nunca pausa</div>
             </div>
+            <!-- NOVO: Status do Wake Lock -->
+            <div id="wakeLockStatus" class="mt-2 pt-2 border-t hidden">
+              <span id="wakeLockIcon" class="font-semibold"></span> <span id="wakeLockText" class="text-gray-600"></span>
+            </div>
           </div>
         </div>
 
@@ -131,21 +140,12 @@
           
           <div id="statusMsg" class="mt-2 text-center text-sm font-medium"></div>
         </form>
-
-        <div id="workerInfo" class="mt-4 p-3 rounded-lg bg-purple-50 border border-purple-200 text-xs text-purple-800 hidden">
-          <p class="font-semibold mb-1">⚡ Web Worker Ativado</p>
-          <p>Thread separada rodando - funciona mesmo com tela desligada!</p>
-          <p class="mt-1 text-[10px]">Worker Status: <span id="workerStatus" class="font-semibold">Conectado</span></p>
-        </div>
       </div>
     </main>
 
-  </div> <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
   <script>
-    // ===================================================
-    // TODO O SEU CÓDIGO ORIGINAL ESTÁ AQUI SEM MUDANÇAS
-    // ===================================================
-
     const SUPABASE_URL = 'https://rptxfjlxymfmxucctuhc.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwdHhmamx4eW1mbXh1Y2N0dWhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1NTcxNjMsImV4cCI6MjA3NzEzMzE2M30.kQSF0jp_-0Qi2AmHQNKz6eTo7zeEi3b7Lk9UjT216dU';
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -155,6 +155,7 @@
     let contagemEnvios = 0;
     let ultimoEnvioTimestamp = 0;
     let proximoEnvioTimeout = null;
+    let wakeLock = null; // NOVO: Para o Wake Lock
 
     // --- Seletores da Página de Rastreamento ---
     const celularSelect = document.getElementById('celularSelect');
@@ -167,8 +168,6 @@
     const ultimoEnvioEl = document.getElementById('ultimoEnvio');
     const proximoEnvioEl = document.getElementById('proximoEnvio');
     const contagemEnviosEl = document.getElementById('contagemEnvios');
-    const workerInfo = document.getElementById('workerInfo');
-    const workerStatus = document.getElementById('workerStatus');
     
     // --- Seletores Globais e da Home Page ---
     const menuButton = document.getElementById('menuButton');
@@ -179,173 +178,59 @@
     const rastreadorPage = document.getElementById('rastreadorPage');
     const homeEntrouBtn = document.getElementById('homeEntrouBtn');
     const homeStatusMsg = document.getElementById('homeStatusMsg');
+    const silentAudio = document.getElementById('silentAudio');
 
 
     // ==================== WEB WORKER ====================
 
     function inicializarWorker() {
       try {
-        // --- INÍCIO DA CORREÇÃO ---
-        // O código do worker_location.js é embutido aqui para criar um Blob.
-        // Isso corrige o erro "not a valid URL" em ambientes restritos (como o blob:).
         const workerCode = `
-          // Web Worker para manter rastreamento ativo em background
-          // Este worker roda em thread separada e não é pausado
-
           console.log('[WORKER] Iniciado!');
-
           let intervaloAtivo = false;
           let celularId = null;
           let intervaloTimer = null;
-          const INTERVALO_MS = 5 * 60 * 1000; // 5 minutos
-
-          // Receber mensagens da página principal
+          const INTERVALO_MS = 5 * 60 * 1000;
           self.addEventListener('message', (e) => {
             const { tipo, dados } = e.data;
-            
-            console.log('[WORKER] Mensagem recebida:', tipo);
-            
             switch (tipo) {
-              case 'INICIAR':
-                iniciarRastreamento(dados.celularId);
-                break;
-                
-              case 'PARAR':
-                pararRastreamento();
-                break;
-                
-              case 'PING':
-                self.postMessage({ tipo: 'PONG', timestamp: Date.now() });
-                break;
-                
-              case 'STATUS':
-                self.postMessage({
-                  tipo: 'STATUS_RESPOSTA',
-                  ativo: intervaloAtivo,
-                  celularId: celularId
-                });
-                break;
+              case 'INICIAR': iniciarRastreamento(dados.celularId); break;
+              case 'PARAR': pararRastreamento(); break;
             }
           });
-
           function iniciarRastreamento(idCelular) {
-            console.log('[WORKER] Iniciando rastreamento para celular:', idCelular);
-            
             celularId = idCelular;
             intervaloAtivo = true;
-            
-            // Primeira verificação imediata
-            verificarEEnviar();
-            
-            // Timer contínuo - Web Workers não são pausados!
-            if (intervaloTimer) {
-              clearInterval(intervaloTimer);
-            }
-            
-            intervaloTimer = setInterval(() => {
-              verificarEEnviar();
-            }, 30000); // Verificar a cada 30 segundos
-            
-            self.postMessage({
-              tipo: 'RASTREAMENTO_INICIADO',
-              timestamp: Date.now()
-            });
+            if (intervaloTimer) clearInterval(intervaloTimer);
+            enviarSolicitacaoLocalizacao();
+            intervaloTimer = setInterval(enviarSolicitacaoLocalizacao, INTERVALO_MS);
+            self.postMessage({ tipo: 'RASTREAMENTO_INICIADO' });
           }
-
           function pararRastreamento() {
-            console.log('[WORKER] Parando rastreamento');
-            
             intervaloAtivo = false;
-            
-            if (intervaloTimer) {
-              clearInterval(intervaloTimer);
-              intervaloTimer = null;
-            }
-            
-            self.postMessage({
-              tipo: 'RASTREAMENTO_PARADO',
-              timestamp: Date.now()
-            });
+            if (intervaloTimer) { clearInterval(intervaloTimer); intervaloTimer = null; }
+            self.postMessage({ tipo: 'RASTREAMENTO_PARADO' });
           }
-
-          function verificarEEnviar() {
-            if (!intervaloAtivo || !celularId) {
-              console.log('[WORKER] Rastreamento inativo ou sem celular');
-              return;
-            }
-            
-            console.log('[WORKER] ⏰ Verificando se precisa enviar...');
-            
-            // Solicitar à página principal que envie a localização
-            self.postMessage({
-              tipo: 'SOLICITAR_LOCALIZACAO',
-              celularId: celularId,
-              timestamp: Date.now()
-            });
+          function enviarSolicitacaoLocalizacao() {
+            if (!intervaloAtivo || !celularId) return;
+            self.postMessage({ tipo: 'SOLICITAR_LOCALIZACAO', celularId: celularId });
           }
-
-          // Heartbeat para garantir que worker está vivo
-          setInterval(() => {
-            if (intervaloAtivo) {
-              console.log('[WORKER] 💚 Worker ativo e funcionando');
-              self.postMessage({
-                tipo: 'HEARTBEAT',
-                timestamp: Date.now()
-              });
-            }
-          }, 60000); // A cada 1 minuto
-
-          console.log('[WORKER] Pronto para receber comandos');
         `;
         
         const blob = new Blob([workerCode], { type: 'application/javascript' });
         const workerUrl = URL.createObjectURL(blob);
-        
-        // worker = new Worker('worker_location.js'); // Linha original com erro
-        worker = new Worker(workerUrl); // Linha corrigida
-        // --- FIM DA CORREÇÃO ---
+        worker = new Worker(workerUrl);
         
         console.log('✅ Web Worker criado');
         
         worker.addEventListener('message', (e) => {
-// ... (restante do código original)
-// ... (restante do código original)
-// ... (restante do código original)
-          const { tipo, celularId, timestamp } = e.data;
-          console.log('[MAIN] Mensagem do worker:', tipo);
-          
-          switch (tipo) {
-            case 'SOLICITAR_LOCALIZACAO':
-              verificarEEnviar(celularId);
-              break;
-              
-            case 'RASTREAMENTO_INICIADO':
-              workerStatus.textContent = 'Rastreando';
-              workerStatus.className = 'font-semibold text-green-600';
-              break;
-              
-            case 'RASTREAMENTO_PARADO':
-              workerStatus.textContent = 'Parado';
-              workerStatus.className = 'font-semibold text-red-600';
-              break;
-              
-            case 'HEARTBEAT':
-              console.log('💚 Worker heartbeat OK');
-              workerStatus.textContent = 'Ativo ✓';
-              break;
-              
-            case 'PONG':
-              console.log('🏓 Worker respondeu ping');
-              break;
+          const { tipo, celularId } = e.data;
+          if (tipo === 'SOLICITAR_LOCALIZACAO') {
+            obterEEnviarLocalizacao(celularId);
           }
         });
         
-        worker.addEventListener('error', (e) => {
-          console.error('❌ Erro no worker:', e);
-          workerStatus.textContent = 'Erro';
-          workerStatus.className = 'font-semibold text-red-600';
-        });
-        
+        worker.addEventListener('error', (e) => console.error('❌ Erro no worker:', e));
         return true;
       } catch (err) {
         console.error('❌ Falha ao criar worker:', err);
@@ -353,18 +238,49 @@
       }
     }
 
-    async function verificarEEnviar(celularId) {
-      const agora = Date.now();
-      const tempoDecorrido = agora - ultimoEnvioTimestamp;
-      
-      if (tempoDecorrido < INTERVALO_MS && ultimoEnvioTimestamp > 0) {
-        console.log('⏰ Ainda não passou 5min');
-        return;
+    // ==================== WAKE LOCK API (NOVO) ====================
+    const wakeLockStatus = document.getElementById('wakeLockStatus');
+    const wakeLockIcon = document.getElementById('wakeLockIcon');
+    const wakeLockText = document.getElementById('wakeLockText');
+
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLockStatus.classList.remove('hidden');
+          wakeLockIcon.textContent = '🔒';
+          wakeLockText.textContent = 'Tela mantida ativa para garantir o rastreamento.';
+          
+          wakeLock.addEventListener('release', () => {
+            console.log('Wake Lock liberado pelo sistema.');
+            // O lock é liberado quando a aba fica inativa.
+            // Ele será reativado pelo 'visibilitychange' listener.
+            wakeLock = null; 
+            wakeLockStatus.classList.add('hidden');
+          });
+          console.log('✅ Wake Lock ativado.');
+        } catch (err) {
+          console.error(`❌ Falha ao ativar Wake Lock: ${err.name}, ${err.message}`);
+          wakeLockStatus.classList.remove('hidden');
+          wakeLockIcon.textContent = '⚠️';
+          wakeLockText.textContent = 'Não foi possível manter a tela ativa.';
+        }
+      } else {
+        console.warn('⚠️ API Wake Lock não suportada.');
+        wakeLockStatus.classList.remove('hidden');
+        wakeLockIcon.textContent = '⚠️';
+        wakeLockText.textContent = 'API para manter tela ativa não suportada.';
       }
-      
-      console.log('⏰ Tempo passou! Enviando...');
-      await obterEEnviarLocalizacao(celularId);
-    }
+    };
+
+    const releaseWakeLock = async () => {
+      if (wakeLock !== null) {
+        await wakeLock.release();
+        wakeLock = null;
+        wakeLockStatus.classList.add('hidden');
+        console.log('✅ Wake Lock liberado.');
+      }
+    };
 
     // ==================== PERMISSÕES ====================
 
@@ -377,14 +293,8 @@
     function enviarNotificacao(titulo, mensagem) {
       if ('Notification' in window && Notification.permission === 'granted') {
         try {
-          new Notification(titulo, {
-            body: mensagem,
-            icon: '/icon-192x192.png',
-            tag: 'rastreamento-gps'
-          });
-        } catch (err) {
-          console.log('Erro notificação:', err);
-        }
+          new Notification(titulo, { body: mensagem, icon: '/icon-192x192.png', tag: 'rastreamento-gps' });
+        } catch (err) { console.log('Erro notificação:', err); }
       }
     }
 
@@ -397,7 +307,6 @@
         statusText.className = 'text-sm font-medium text-green-600';
         liberarBtn.classList.add('hidden');
         pararBtn.classList.remove('hidden');
-        workerInfo.classList.remove('hidden');
         homeStatusMsg.textContent = 'Rastreamento ATIVO 🚀';
         homeStatusMsg.className = 'mt-6 text-center text-lg font-bold text-green-300 drop-shadow';
       } else {
@@ -407,28 +316,20 @@
         liberarBtn.classList.remove('hidden');
         pararBtn.classList.add('hidden');
         proximoEnvioEl.textContent = '---';
-        workerInfo.classList.add('hidden');
         homeStatusMsg.textContent = 'Rastreamento inativo.';
         homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-white/90';
       }
     }
 
     function atualizarContagemRegressiva() {
-      if (proximoEnvioTimeout) {
-        clearInterval(proximoEnvioTimeout);
-      }
-
+      if (proximoEnvioTimeout) clearInterval(proximoEnvioTimeout);
       const fimContagem = ultimoEnvioTimestamp + INTERVALO_MS;
-
       proximoEnvioTimeout = setInterval(() => {
-        const agora = Date.now();
-        const restante = fimContagem - agora;
-
+        const restante = fimContagem - Date.now();
         if (restante <= 0) {
           proximoEnvioEl.textContent = 'Enviando...';
           return;
         }
-
         const min = Math.floor(restante / 60000);
         const seg = Math.floor((restante % 60000) / 1000);
         proximoEnvioEl.textContent = min + 'm ' + seg + 's';
@@ -440,171 +341,89 @@
     async function carregarCelulares() {
       try {
         loadingMsg.textContent = '🔄 Carregando...';
-        loadingMsg.className = 'mt-2 text-xs text-blue-600';
-        
-        const { data, error } = await supabase
-          .from('usuarios_localizacao')
-          .select('id,nome,numero');
-        
+        const { data, error } = await supabase.from('usuarios_localizacao').select('id,nome,numero');
         if (error) throw error;
 
         celularSelect.innerHTML = '<option value="">Selecione...</option>';
-        
         if (data && data.length > 0) {
-          data.forEach(c => {
-            celularSelect.innerHTML += `<option value="${c.id}">${c.nome} (${c.numero})</option>`;
-          });
+          data.forEach(c => { celularSelect.innerHTML += `<option value="${c.id}">${c.nome} (${c.numero})</option>`; });
           loadingMsg.textContent = `✅ ${data.length} celular(es)`;
-          loadingMsg.className = 'mt-2 text-xs text-green-600';
         }
         
         const savedId = localStorage.getItem('lastSelectedCelularId');
         if (savedId) celularSelect.value = savedId;
 
-        const rastreamentoAtivo = localStorage.getItem('rastreamentoAtivo') === 'true';
-        const contagemSalva = localStorage.getItem('contagemEnvios');
-        const ultimoEnvioSalvo = localStorage.getItem('ultimoEnvioTimestamp');
-        
-        if (contagemSalva) {
-          contagemEnvios = parseInt(contagemSalva);
-          contagemEnviosEl.textContent = contagemEnvios;
-        }
-
-        if (ultimoEnvioSalvo) {
-          ultimoEnvioTimestamp = parseInt(ultimoEnvioSalvo);
-          ultimoEnvioEl.textContent = new Date(ultimoEnvioTimestamp).toLocaleTimeString('pt-BR');
-        }
-
-        if (rastreamentoAtivo && savedId) {
-          // Atraso para garantir que tudo carregou antes de tentar iniciar
+        if (localStorage.getItem('rastreamentoAtivo') === 'true' && savedId) {
           setTimeout(() => {
             console.log("Iniciando rastreamento automático salvo...");
-            celularSelect.value = savedId; // Garante que o select tenha o valor correto
+            celularSelect.value = savedId;
             iniciarRastreamento();
           }, 1000);
-        } else if (rastreamentoAtivo) {
-            // Se estava ativo mas sem ID, para
-            pararRastreamento();
         } else {
-            atualizarStatusUI(false);
+          atualizarStatusUI(false);
         }
       } catch (err) {
-        // --- CORREÇÃO AQUI ---
-        // Log mais detalhado
         console.error('Erro ao carregar celulares:', err); 
-        // Tenta pegar a .message, se não existir, transforma o objeto erro em string
-        const errorMessage = err.message || JSON.stringify(err);
-        loadingMsg.textContent = '❌ Erro: ' + errorMessage;
-        // --- FIM DA CORREÇÃO ---
-        loadingMsg.className = 'mt-2 text-xs text-red-300 text-left';
+        loadingMsg.textContent = '❌ Erro: ' + (err.message || JSON.stringify(err));
       }
     }
     
     async function obterEEnviarLocalizacao(celularId) {
       if (!celularId) return false;
       
-      const msg = "📍 Obtendo localização...";
-      statusMsg.textContent = msg;
-      statusMsg.className = 'mt-2 text-center text-sm font-medium text-blue-600';
-      homeStatusMsg.textContent = msg; // Atualiza home também
-      homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-white/90';
-      console.log('📍 Solicitando GPS...');
+      statusMsg.textContent = "📍 Obtendo localização...";
+      homeStatusMsg.textContent = "📍 Obtendo localização...";
       
       try {
         const posicao = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 0
-          });
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
         });
 
-        console.log('✅ GPS:', posicao.coords.latitude, posicao.coords.longitude);
         statusMsg.textContent = "📤 Enviando...";
         homeStatusMsg.textContent = "📤 Enviando...";
         
-        const { error } = await supabase
-          .from('usuarios_localizacao')
-          .update({
-            latitude: posicao.coords.latitude,
-            longitude: posicao.coords.longitude,
-            created_at: new Date().toISOString()
-          })
-          .eq('id', celularId);
-
+        const { error } = await supabase.from('usuarios_localizacao').update({
+          latitude: posicao.coords.latitude,
+          longitude: posicao.coords.longitude,
+          created_at: new Date().toISOString()
+        }).eq('id', celularId);
         if (error) throw error;
         
-        // ================== INÍCIO DA MODIFICAÇÃO (HISTÓRICO) ==================
-        // Agora, INSERE um registro na tabela de histórico
-        const { error: errorHistorico } = await supabase
-          .from('historico_localizacao')
-          .insert({
-            usuario_id: celularId,
-            latitude: posicao.coords.latitude,
-            longitude: posicao.coords.longitude
-          });
-          
-        if (errorHistorico) {
-            // Se falhar em salvar o histórico, apenas loga no console,
-            // mas não impede o resto da função de continuar.
-            console.error('❌ Erro ao salvar histórico:', errorHistorico.message);
-        }
-        // =================== FIM DA MODIFICAÇÃO (HISTÓRICO) ====================
+        await supabase.from('historico_localizacao').insert({
+          usuario_id: celularId,
+          latitude: posicao.coords.latitude,
+          longitude: posicao.coords.longitude
+        });
 
-        contagemEnvios++;
+        contagemEnvios = (parseInt(localStorage.getItem('contagemEnvios')) || 0) + 1;
         ultimoEnvioTimestamp = Date.now();
         
         localStorage.setItem('contagemEnvios', contagemEnvios);
         localStorage.setItem('ultimoEnvioTimestamp', ultimoEnvioTimestamp);
         
         contagemEnviosEl.textContent = contagemEnvios;
-        
         const horario = new Date().toLocaleTimeString('pt-BR');
         ultimoEnvioEl.textContent = horario;
         
         const successMsg = '✅ Enviado às ' + horario;
         statusMsg.textContent = successMsg;
-        statusMsg.className = 'mt-2 text-center text-sm font-medium text-green-600';
-        homeStatusMsg.textContent = successMsg; // Atualiza home também
-        homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-green-300';
+        homeStatusMsg.textContent = successMsg;
 
-        console.log('✅ Envio #' + contagemEnvios);
         enviarNotificacao('Localização Enviada', 'Envio #' + contagemEnvios);
-        
         atualizarContagemRegressiva();
         return true;
       } catch (erro) {
-        // --- INÍCIO DA NOVA CORREÇÃO ---
-        // O erro {} é comum em iframes/ambientes restritos onde o GPS é bloqueado.
-        // Vamos tratar isso de forma mais clara.
-        
-        let errorMessage = "Erro de GPS não especificado.";
-
-        if (erro && typeof erro === 'object') {
-            // Checagem mais provável primeiro
-            if (erro.code === 1) { 
-                errorMessage = "Permissão de GPS negada. Verifique as permissões do navegador.";
-            } else if (erro.code === 2) {
-                errorMessage = "Não foi possível obter a localização (sinal fraco ou indisponível).";
-            } else if (erro.code === 3) {
-                errorMessage = "Tempo esgotado para obter GPS.";
-            } else if (erro.message) {
-                errorMessage = erro.message;
-            } else if (JSON.stringify(erro) === "{}") {
-                // Captura específica do erro {}
-                errorMessage = "Falha ao obter GPS. (Provável restrição do ambiente/iframe).";
-            }
+        let errorMessage = "Erro desconhecido.";
+        if (erro && erro.code) {
+          if (erro.code === 1) errorMessage = "Permissão de GPS negada.";
+          else if (erro.code === 2) errorMessage = "Não foi possível obter a localização.";
+          else if (erro.code === 3) errorMessage = "Tempo esgotado para obter GPS.";
+        } else if (erro && erro.message) {
+          errorMessage = "Falha ao enviar: " + erro.message;
         }
-
-        // Atualiza o console.error para mostrar a mensagem tratada, não o objeto {}
         console.error('❌ Erro ao obter/enviar localização:', errorMessage);
-        // --- FIM DA NOVA CORREÇÃO ---
-
-        const errorMsg = "❌ Erro: " + errorMessage;
-        statusMsg.textContent = errorMsg;
-        statusMsg.className = 'mt-2 text-center text-sm font-medium text-red-600';
-        homeStatusMsg.textContent = errorMsg; // Atualiza home também
-        homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-red-300';
+        statusMsg.textContent = "❌ " + errorMessage;
+        homeStatusMsg.textContent = "❌ " + errorMessage;
         return false;
       }
     }
@@ -612,69 +431,59 @@
     // ==================== CONTROLE ====================
     
     async function iniciarRastreamento() {
-      // Pega o valor do select, que pode ter sido setado pela home ou pelo usuário
       const celularId = celularSelect.value;
-      
       if (!celularId) {
-        // Mensagem de erro atualizada
-        const errorMsg = "❌ Selecione um celular primeiro";
-        statusMsg.textContent = errorMsg;
-        statusMsg.className = 'mt-2 text-center text-sm font-medium text-red-600';
-        homeStatusMsg.textContent = errorMsg;
-        homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-red-300';
+        const msg = "❌ Selecione um celular primeiro";
+        statusMsg.textContent = msg;
+        homeStatusMsg.textContent = msg;
         return;
       }
 
-      console.log('🚀 Iniciando:', celularId);
-
+      console.log('🚀 Iniciando rastreamento para:', celularId);
       await solicitarPermissaoNotificacao();
+      
+      // 1. Ativa o Wake Lock para manter a tela acesa
+      await requestWakeLock();
+
+      // 2. Toca áudio silencioso como fallback
+      silentAudio.play().catch(e => console.warn('Falha ao tocar áudio silencioso:', e));
       
       localStorage.setItem('rastreamentoAtivo', 'true');
       localStorage.setItem('lastSelectedCelularId', celularId);
       
       atualizarStatusUI(true);
       
-      const sucesso = await obterEEnviarLocalizacao(celularId);
-      
-      if (!sucesso) {
-        // Se falhar (ex: permissão GPS negada), para o rastreamento
-        pararRastreamento();
-        return;
-      }
-
+      // 3. Inicia o Web Worker
       if (worker) {
         worker.postMessage({ tipo: 'INICIAR', dados: { celularId } });
       }
 
-      enviarNotificacao('Rastreamento Iniciado', 'Web Worker ativo - Envio a cada 5 min');
+      enviarNotificacao('Rastreamento Iniciado', 'Envio a cada 5 min, mesmo em background.');
     }
     
-    function pararRastreamento() {
+    async function pararRastreamento() {
       console.log('⏹️ Parando...');
       
-      if (worker) {
-        worker.postMessage({ tipo: 'PARAR' });
-      }
+      // Libera o Wake Lock
+      await releaseWakeLock();
+      
+      // Para o áudio silencioso
+      silentAudio.pause();
+      silentAudio.currentTime = 0;
+      
+      if (worker) worker.postMessage({ tipo: 'PARAR' });
       
       localStorage.setItem('rastreamentoAtivo', 'false');
       atualizarStatusUI(false);
       
-      const stopMsg = "⏹️ Rastreamento parado";
-      statusMsg.textContent = stopMsg;
-      statusMsg.className = 'mt-2 text-center text-sm font-medium text-gray-600';
-      homeStatusMsg.textContent = stopMsg;
-      homeStatusMsg.className = 'mt-6 text-center text-lg font-medium text-white/90';
+      statusMsg.textContent = "⏹️ Rastreamento parado";
+      homeStatusMsg.textContent = "⏹️ Rastreamento parado";
       
-      if (proximoEnvioTimeout) {
-        clearInterval(proximoEnvioTimeout);
-      }
-      
+      if (proximoEnvioTimeout) clearInterval(proximoEnvioTimeout);
       enviarNotificacao('Parado', 'Rastreamento interrompido');
     }
 
-    // ===================================================
-    // NOVA LÓGICA DE NAVEGAÇÃO E MENU
-    // ===================================================
+    // ==================== NAVEGAÇÃO E INIT ====================
 
     function toggleMenu() {
       menuNav.classList.toggle('open');
@@ -682,87 +491,48 @@
     }
 
     function navegarPara(pagina) {
-      // Esconde todas as páginas
       homePage.classList.add('hidden');
       rastreadorPage.classList.add('hidden');
-      
-      // Mostra a página desejada
-      if (pagina === 'home') {
-        homePage.classList.remove('hidden');
-      } else if (pagina === 'rastreador') {
-        rastreadorPage.classList.remove('hidden');
-      }
-      
-      // Fecha o menu
+      if (pagina === 'home') homePage.classList.remove('hidden');
+      else if (pagina === 'rastreador') rastreadorPage.classList.remove('hidden');
       toggleMenu();
     }
 
-    // ==================== INIT ====================
-
-    // --- Listeners da Página de Rastreamento ---
     celularSelect.addEventListener('change', (e) => {
-      const id = e.target.value;
-      if (id) {
-        localStorage.setItem('lastSelectedCelularId', id);
-        loadingMsg.textContent = '✅ Selecionado';
-        loadingMsg.className = 'mt-2 text-xs text-green-600';
-      }
+      if (e.target.value) localStorage.setItem('lastSelectedCelularId', e.target.value);
     });
-
     liberarBtn.addEventListener('click', iniciarRastreamento);
     pararBtn.addEventListener('click', pararRastreamento);
-
-    // --- Listeners da Home Page ---
-    homeEntrouBtn.addEventListener('click', () => {
-      // Tenta iniciar com o celular salvo no localStorage
-      const celularId = localStorage.getItem('lastSelectedCelularId');
-      
-      // --- CORREÇÃO ---
-      // Sempre usa o valor ATUAL do select.
-      // A lógica anterior tentava usar o localStorage, mas o usuário pode ter mudado o select.
-      // A função iniciarRastreamento() já pega o valor do select.
-      iniciarRastreamento();
-    });
-
-    // --- Listeners do Menu e Navegação ---
+    homeEntrouBtn.addEventListener('click', iniciarRastreamento);
     menuButton.addEventListener('click', toggleMenu);
     menuOverlay.addEventListener('click', toggleMenu);
-    document.getElementById('navHome').addEventListener('click', (e) => {
-      e.preventDefault();
-      navegarPara('home');
-    });
-    document.getElementById('navRastreador').addEventListener('click', (e) => {
-      e.preventDefault();
-      navegarPara('rastreador');
-    });
+    document.getElementById('navHome').addEventListener('click', (e) => { e.preventDefault(); navegarPara('home'); });
+    document.getElementById('navRastreador').addEventListener('click', (e) => { e.preventDefault(); navegarPara('rastreador'); });
 
+    // --- MODIFICADO: Listener de visibilidade para reativar Wake Lock e atualizar ---
+    document.addEventListener('visibilitychange', async () => {
+      // Reativa o Wake Lock se a aba ficar visível e o rastreamento estiver ativo
+      if (wakeLock === null && document.visibilityState === 'visible' && localStorage.getItem('rastreamentoAtivo') === 'true') {
+        console.log('👁️ App visível, reativando Wake Lock.');
+        await requestWakeLock();
+      }
 
-    // --- Listener Global ---
-    document.addEventListener('visibilitychange', () => {
+      // Envia uma atualização imediata ao voltar para o app
       if (document.visibilityState === 'visible') {
-        console.log('👁️ App voltou');
+        console.log('👁️ App voltou, solicitando atualização.');
         const celularId = localStorage.getItem('lastSelectedCelularId');
-        // Só verifica/envia se o rastreamento estiver ativo
         if (celularId && localStorage.getItem('rastreamentoAtivo') === 'true') {
-          verificarEEnviar(celularId);
+          obterEEnviarLocalizacao(celularId);
         }
       }
     });
 
-    // --- Inicialização do App ---
     document.addEventListener('DOMContentLoaded', async () => {
       console.log('🚀 Inicializando App GEOMAQ...');
-      
-      if (inicializarWorker()) {
-        console.log('✅ Worker OK');
-      } else {
-        console.warn('⚠️ Worker falhou, usando fallback');
-      }
-      
-      // Carrega os celulares e o estado salvo
+      if (inicializarWorker()) console.log('✅ Worker OK');
+      else console.warn('⚠️ Worker falhou.');
       await carregarCelulares();
     });
-
   </script>
 </body>
 </html>
