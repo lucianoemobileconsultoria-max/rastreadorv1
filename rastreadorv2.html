@@ -43,7 +43,7 @@
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     
     // IMPORTANTE: Cole aqui a sua "Public Key" gerada no site vapidkeys.com
-    const VAPID_PUBLIC_KEY = 'BJvCCJUx9FbMq2dyyVs6dBbdNDAC28UvY8oiZ5sCpyHI2h4meqo8E73tQ10AiPqfcQcgMxgyc458P-n2UZl9gNs';
+    const VAPID_PUBLIC_KEY = 'YOUR_VAPID_PUBLIC_KEY';
 
     // --- Seletores de Elementos ---
     const celularSelect = document.getElementById('celularSelect');
@@ -117,14 +117,27 @@
             });
 
             statusMsg.textContent = '💾 Salvando inscrição no servidor...';
-            const { error } = await supabase
+            
+            // --- CORREÇÃO PARA O ERRO "ON CONFLICT" ---
+            // 1. Deleta qualquer inscrição antiga para este usuário.
+            const { error: deleteError } = await supabase
                 .from('push_subscriptions')
-                .upsert({ 
+                .delete()
+                .eq('usuario_id', celularId);
+
+            if (deleteError) {
+                console.warn("Aviso ao tentar deletar inscrição antiga (pode ser ignorado se não existia):", deleteError.message);
+            }
+
+            // 2. Insere a nova inscrição.
+            const { error: insertError } = await supabase
+                .from('push_subscriptions')
+                .insert({ 
                     usuario_id: celularId, 
                     subscription_info: subscription 
-                }, { onConflict: 'usuario_id' });
+                });
 
-            if (error) throw error;
+            if (insertError) throw insertError; // Se a inserção falhar, o erro é fatal.
             
             localStorage.setItem('pushSubscribedId', celularId);
             updateUIForSubscribed(celularId);
