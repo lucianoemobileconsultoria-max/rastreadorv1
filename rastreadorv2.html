@@ -105,6 +105,18 @@
 
     <main id="rastreadorPage" class="page-content p-6 hidden flex items-center justify-center" style="min-height: 80vh;">
       <div class="w-full max-w-md rounded-2xl shadow-2xl bg-white/95 mx-auto p-6">
+        
+        <!-- NOVO: AVISO DE PERMISSÃO -->
+        <div id="permission-warning" class="hidden mb-4 p-4 rounded-lg bg-yellow-100 border-l-4 border-yellow-500">
+            <h3 class="font-bold text-yellow-800">⚠️ Ação Necessária!</h3>
+            <p class="text-sm text-yellow-700 mt-1">
+                Para o rastreamento funcionar com a tela desligada, a permissão de localização deve ser <strong>"Permitir o tempo todo"</strong>.
+            </p>
+            <p class="text-xs text-yellow-600 mt-2">
+                Vá em: Configurações do Celular → Apps → GEOMAQ → Permissões → Localização → Permitir o tempo todo.
+            </p>
+        </div>
+
         <h1 class="text-2xl font-extrabold text-indigo-700 mb-4 text-center drop-shadow">🛰️ Rastreamento Contínuo</h1>
         
         <div id="statusContainer" class="mb-4 p-4 rounded-xl border-2 border-gray-200 bg-gray-50">
@@ -175,6 +187,7 @@
     const wakeLockStatus = document.getElementById('wakeLockStatus');
     const wakeLockIcon = document.getElementById('wakeLockIcon');
     const wakeLockText = document.getElementById('wakeLockText');
+    const permissionWarning = document.getElementById('permission-warning');
 
     // ==================== PWA / SERVICE WORKER ====================
     let deferredPrompt;
@@ -182,12 +195,11 @@
     const installButton = document.getElementById('install-button');
 
     window.addEventListener('beforeinstallprompt', (e) => {
-      // Adicionado para depuração
       console.log("✅ 'beforeinstallprompt' foi disparado! O PWA é instalável.");
       e.preventDefault();
       deferredPrompt = e;
       installContainer.classList.remove('hidden');
-      installContainer.classList.add('flex'); // Make it visible
+      installContainer.classList.add('flex');
     });
 
     installButton.addEventListener('click', async () => {
@@ -197,13 +209,11 @@
         console.log(`User response to the install prompt: ${outcome}`);
         deferredPrompt = null;
         installContainer.classList.add('hidden');
-        installContainer.classList.remove('flex');
       }
     });
     
     window.addEventListener('appinstalled', () => {
         installContainer.classList.add('hidden');
-        installContainer.classList.remove('flex');
         deferredPrompt = null;
         console.log('PWA foi instalado');
     });
@@ -219,39 +229,39 @@
         }
     }
 
-    // ==================== WAKE LOCK API ====================
-    const requestWakeLock = async () => {
-      if ('wakeLock' in navigator) {
-        try {
-          wakeLock = await navigator.wakeLock.request('screen');
-          wakeLockStatus.classList.remove('hidden');
-          wakeLockIcon.textContent = '🔒';
-          wakeLockText.textContent = 'Tela mantida ativa para garantir o rastreamento.';
-          wakeLock.addEventListener('release', () => {
-            wakeLock = null; 
-            wakeLockStatus.classList.add('hidden');
-          });
-        } catch (err) {
-          wakeLockStatus.classList.remove('hidden');
-          wakeLockIcon.textContent = '⚠️';
-          wakeLockText.textContent = 'Não foi possível manter a tela ativa.';
-        }
-      } else {
-        wakeLockStatus.classList.remove('hidden');
-        wakeLockIcon.textContent = '⚠️';
-        wakeLockText.textContent = 'API para manter tela ativa não suportada.';
-      }
-    };
-
-    const releaseWakeLock = async () => {
-      if (wakeLock !== null) {
-        await wakeLock.release();
-        wakeLock = null;
-        wakeLockStatus.classList.add('hidden');
-      }
-    };
-
     // ==================== PERMISSÕES E NOTIFICAÇÕES ====================
+    
+    // NOVO: Função para verificar permissões de localização em segundo plano
+    async function checkBackgroundLocationPermission() {
+        if ('permissions' in navigator) {
+            try {
+                // 'geolocation' é a permissão padrão, mas não diferencia foreground/background
+                const status = await navigator.permissions.query({ name: 'geolocation' });
+                
+                // A única maneira de SABER se temos permissão de background é tentar usá-la e falhar.
+                // Como não podemos saber diretamente, vamos INSTRUIR o usuário e assumir que ele precisa agir.
+                // O aviso será mostrado por padrão e só será escondido se o rastreamento funcionar.
+                permissionWarning.classList.remove('hidden');
+
+                status.onchange = () => {
+                    if (status.state === 'granted') {
+                        // O usuário pode ter concedido, mas ainda não sabemos se é "o tempo todo".
+                        // O aviso continua por enquanto.
+                    } else {
+                        permissionWarning.classList.remove('hidden');
+                    }
+                };
+            } catch (e) {
+                console.warn("API de permissões não suportada ou erro:", e);
+                // Se a API não for suportada, mostramos o aviso como precaução.
+                permissionWarning.classList.remove('hidden');
+            }
+        } else {
+            permissionWarning.classList.remove('hidden');
+        }
+    }
+
+
     async function solicitarPermissaoNotificacao() {
       if ('Notification' in window && Notification.permission === 'default') {
         await Notification.requestPermission();
@@ -261,17 +271,48 @@
     function enviarNotificacao(titulo, mensagem) {
       if ('Notification' in window && Notification.permission === 'granted') {
         try {
-          new Notification(titulo, { body: mensagem, icon: '/icon-192.png', tag: 'rastreamento-gps' });
+          // ATUALIZADO: Adicionado 'requireInteraction' para tornar a notificação persistente
+          navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification(titulo, { 
+                body: mensagem, 
+                icon: '/icon-192.png', 
+                tag: 'rastreamento-gps',
+                requireInteraction: true // Ajuda a sinalizar ao SO que é uma tarefa importante
+            });
+          });
         } catch (err) { console.log('Erro notificação:', err); }
       }
     }
+    
+    // ==================== WAKE LOCK API ====================
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLockStatus.classList.remove('hidden');
+          wakeLockIcon.textContent = '🔒';
+          wakeLockText.textContent = 'Tela mantida ativa para garantir o rastreamento.';
+          wakeLock.addEventListener('release', () => { wakeLock = null; wakeLockStatus.classList.add('hidden'); });
+        } catch (err) {
+          wakeLockStatus.classList.remove('hidden');
+          wakeLockIcon.textContent = '⚠️';
+          wakeLockText.textContent = 'Não foi possível manter a tela ativa.';
+        }
+      }
+    };
+
+    const releaseWakeLock = async () => {
+      if (wakeLock !== null) {
+        await wakeLock.release();
+        wakeLock = null;
+      }
+    };
 
     // ==================== UI (Interface do Usuário) ====================
     function atualizarStatusUI(ativo) {
       if (ativo) {
         statusIndicator.innerHTML = '<span class="status-indicator status-active pulse"></span>';
         statusText.textContent = 'Rastreando';
-        statusText.className = 'text-sm font-medium text-green-600';
         liberarBtn.classList.add('hidden');
         pararBtn.classList.remove('hidden');
         homeStatusMsg.textContent = 'Rastreamento ATIVO 🚀';
@@ -279,7 +320,6 @@
       } else {
         statusIndicator.innerHTML = '<span class="status-indicator status-inactive"></span>';
         statusText.textContent = 'Inativo';
-        statusText.className = 'text-sm font-medium text-gray-600';
         liberarBtn.classList.remove('hidden');
         pararBtn.classList.add('hidden');
         homeStatusMsg.textContent = 'Rastreamento inativo.';
@@ -291,13 +331,15 @@
     async function carregarCelulares() {
       try {
         loadingMsg.textContent = '🔄 Carregando...';
-        const { data, error } = await supabase.from('usuarios_localizacao').select('id,nome,numero');
+        const { data, error } = await supabase.from('usuarios_localizacao').select('id,nome,numero').filter('numero', 'not.is', null).filter('numero', 'neq', '');
         if (error) throw error;
 
         celularSelect.innerHTML = '<option value="">Selecione...</option>';
         if (data && data.length > 0) {
-          data.filter(c => c.numero).forEach(c => { celularSelect.innerHTML += `<option value="${c.id}">${c.nome} (${c.numero})</option>`; });
-          loadingMsg.textContent = `✅ ${data.filter(c => c.numero).length} celular(es)`;
+          data.forEach(c => { celularSelect.innerHTML += `<option value="${c.id}">${c.nome} (${c.numero})</option>`; });
+          loadingMsg.textContent = `✅ ${data.length} celular(es) encontrado(s)`;
+        } else {
+          loadingMsg.textContent = 'Nenhum celular cadastrado.';
         }
         
         const savedId = localStorage.getItem('lastSelectedCelularId');
@@ -314,15 +356,17 @@
         }
       } catch (err) {
         console.error('Erro ao carregar celulares:', err); 
-        loadingMsg.textContent = '❌ Erro: ' + (err.message || JSON.stringify(err));
+        loadingMsg.textContent = '❌ Erro ao carregar celulares.';
       }
     }
     
     // ==================== LÓGICA PRINCIPAL DE RASTREAMENTO ====================
     
     async function handlePositionUpdate(posicao) {
+        // Se recebemos uma posição, significa que a permissão está funcionando. Esconde o aviso.
+        permissionWarning.classList.add('hidden');
+
         const now = Date.now();
-        
         const tempoDesdeUltimoEnvio = now - lastSentTimestamp;
 
         if (lastSentTimestamp !== 0 && tempoDesdeUltimoEnvio < INTERVALO_MS) {
@@ -342,18 +386,19 @@
         homeStatusMsg.textContent = "📤 Enviando localização...";
       
         try {
-            const { error } = await supabase.from('usuarios_localizacao').update({
+            const { error: updateError } = await supabase.from('usuarios_localizacao').update({
                 latitude: posicao.coords.latitude,
                 longitude: posicao.coords.longitude,
                 created_at: new Date().toISOString()
             }).eq('id', celularId);
-            if (error) throw error;
+            if (updateError) throw updateError;
             
-            await supabase.from('historico_localizacao').insert({
+            const { error: insertError } = await supabase.from('historico_localizacao').insert({
                 usuario_id: celularId,
                 latitude: posicao.coords.latitude,
                 longitude: posicao.coords.longitude
             });
+            if (insertError) throw insertError;
 
             lastSentTimestamp = now;
             contagemEnvios++;
@@ -392,6 +437,7 @@
 
         if (erro.code === 1) { // Permissão negada é um erro fatal
             pararRastreamento();
+            permissionWarning.classList.remove('hidden'); // Mostra o aviso se a permissão for negada
         }
     }
 
@@ -411,6 +457,7 @@
 
       console.log('🚀 Iniciando rastreamento contínuo para:', celularId);
       await solicitarPermissaoNotificacao();
+      await checkBackgroundLocationPermission();
       
       await requestWakeLock();
       silentAudio.play().catch(e => console.warn('Falha ao tocar áudio silencioso:', e));
@@ -420,7 +467,7 @@
 
       localStorage.setItem('rastreamentoAtivo', 'true');
       localStorage.setItem('lastSelectedCelularId', celularId);
-      lastSentTimestamp = 0; // Reseta o timer para forçar um envio na primeira localização recebida
+      lastSentTimestamp = 0;
       
       atualizarStatusUI(true);
       statusMsg.textContent = "🛰️ Rastreamento ativado. Aguardando primeiro sinal do GPS...";
@@ -459,8 +506,11 @@
       homePage.classList.add('hidden');
       rastreadorPage.classList.add('hidden');
       if (pagina === 'home') homePage.classList.remove('hidden');
-      else if (pagina === 'rastreador') rastreadorPage.classList.remove('hidden');
-      toggleMenu();
+      else if (pagina === 'rastreador') {
+          rastreadorPage.classList.remove('hidden');
+          checkBackgroundLocationPermission(); // Verifica a permissão sempre que a página de rastreamento for aberta
+      }
+      if(menuNav.classList.contains('open')) toggleMenu();
     }
 
     celularSelect.addEventListener('change', (e) => {
@@ -481,17 +531,16 @@
       if (document.visibilityState === 'visible' && localStorage.getItem('rastreamentoAtivo') === 'true') {
         console.log('👁️ App visível, reativando Wake Lock e forçando checagem.');
         await requestWakeLock();
-        // Força uma checagem (não um envio) ao voltar para o app
         navigator.geolocation.getCurrentPosition(handlePositionUpdate, handlePositionError, { enableHighAccuracy: true, timeout: 15000 });
       }
     });
 
     document.addEventListener('DOMContentLoaded', async () => {
-      console.log('🚀 Inicializando App GEOMAQ v5 (PWA Fix)...');
+      console.log('🚀 Inicializando App GEOMAQ v6 (Permission Check)...');
       await registerServiceWorker();
       contagemEnvios = parseInt(localStorage.getItem('contagemEnvios')) || 0;
       contagemEnviosEl.textContent = contagemEnvios;
-      const ultimoTs = parseInt(localStorage.getItem('ultimoEnvioTimestamp')) || 0;
+      const ultimoTs = parseInt(localStorage.getItem('lastSentTimestamp')) || 0;
       if (ultimoTs) {
           ultimoEnvioEl.textContent = new Date(ultimoTs).toLocaleTimeString('pt-BR');
       }
