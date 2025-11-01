@@ -188,27 +188,23 @@
       }
     }
 
-    // --- FUNÇÃO PARA SOLICITAR LOCALIZAÇÃO (CORRIGIDA) ---
+    // --- FUNÇÃO PARA SOLICITAR LOCALIZAÇÃO (CORRIGIDA E SIMPLIFICADA) ---
     async function solicitarLocalizacao(usuarioId, targetButton) {
         targetButton.disabled = true;
         targetButton.textContent = 'Enviando...';
 
         try {
-            // Tornando a chamada da função mais explícita para evitar problemas com o body
+            // A biblioteca da Supabase lida com a serialização. Passamos o objeto diretamente.
             const { data, error } = await supabase.functions.invoke('request-location', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ usuarioId: usuarioId }),
+                body: { usuarioId: usuarioId },
             });
 
             if (error) throw error; 
 
-            // A resposta da função agora é um JSON, então precisamos verificar o 'success' dentro dele
             if (data && data.success) {
-                alert(`✅ Solicitação de localização enviada com sucesso para o dispositivo! A localização será atualizada no mapa em breve.`);
+                alert(`✅ Solicitação de localização enviada com sucesso!`);
                 targetButton.textContent = 'Enviado!';
             } else {
-                // Se 'data' existir mas 'success' for falso, ou se 'data' não existir
                 const errorMessage = data ? data.error : 'Resposta inválida da função.';
                 alert(`⚠️ Falha ao enviar solicitação: ${errorMessage || 'Erro desconhecido.'}`);
                 targetButton.textContent = 'Falhou';
@@ -217,9 +213,12 @@
         } catch (error) {
             console.error('Erro detalhado ao invocar a Edge Function:', error);
             let detailedMessage = error.message;
-            // O erro de rede agora pode ter mais detalhes no objeto de erro
-            if (error.context && error.context.json) {
-                detailedMessage = error.context.json.error || detailedMessage;
+            // Tenta extrair uma mensagem de erro mais detalhada do contexto, se disponível
+            if (error.context && typeof error.context.json === 'function') {
+                try {
+                    const errorJson = await error.context.json();
+                    detailedMessage = errorJson.error || detailedMessage;
+                } catch (e) { /* ignora erro de parsing */ }
             } else if (error.context) {
                 detailedMessage += ` | Contexto: ${JSON.stringify(error.context)}`;
             }
